@@ -1,5 +1,6 @@
 package com.example.worker_registry.Entitys;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -17,6 +18,8 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+// (Opcional) Ignora campos extra que envíe el front y no estén en la entidad
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Cliente {
 
     @Id
@@ -46,7 +49,7 @@ public class Cliente {
 
     // ⚠️ Campo solo para recibir por JSON y validar; no se persiste
     @Transient
-    @NotBlank(message = "Debe confirmar la contraseña")
+    // ❌ Se quita @NotBlank para no bloquear por Bean Validation
     @JsonProperty(value = "confirmarContrasena", access = JsonProperty.Access.WRITE_ONLY)
     private String confirmarContrasena;
 

@@ -51,6 +51,19 @@ public class JwtService {
         return Long.valueOf(parse(token).getSubject());
     }
 
+    /**
+     * ✅ Nuevo: usado por AuthClientController/AuthController
+     * Valida que el token sea de tipo "activation" y retorna el userId (subject).
+     */
+    public Long parseActivationToken(String token) {
+        Claims c = parse(token);
+        Object type = c.get("type");
+        if (type == null || !"activation".equals(type.toString())) {
+            throw new IllegalArgumentException("Token inválido para activación");
+        }
+        return Long.valueOf(c.getSubject());
+    }
+
     // ===== ACCESO (JWT para usar después del login) =====
     public String generateAccessToken(Long userId, String role) {
         Instant now = Instant.now();
