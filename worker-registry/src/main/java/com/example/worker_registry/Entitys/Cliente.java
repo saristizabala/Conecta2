@@ -61,4 +61,5 @@ public class Cliente {
     // ✅ Activo solo tras verificar por correo
     @Builder.Default
     private boolean activo = false;
+    
 }

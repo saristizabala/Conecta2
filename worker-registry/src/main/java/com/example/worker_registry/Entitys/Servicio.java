@@ -1,5 +1,6 @@
 package com.example.worker_registry.Entitys;
 
+import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
@@ -19,7 +20,7 @@ public class Servicio {
 
     // ====== Dueño del servicio (cliente) ======
     @ManyToOne(optional = false, fetch = FetchType.LAZY)
-    @JoinColumn(name = "cliente_id")
+    @JoinColumn(name = "cliente_id", nullable = false)
     @JsonIgnore
     private Cliente cliente;
 
@@ -45,6 +46,7 @@ public class Servicio {
     @NotNull(message = "La fecha estimada es obligatoria")
     @FutureOrPresent(message = "La fecha estimada no puede ser anterior a hoy")
     @Column(nullable = false)
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime fechaEstimada;
 
     // ====== Estado ======

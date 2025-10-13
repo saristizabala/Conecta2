@@ -56,8 +56,12 @@ public class ClienteServicioController {
     // Obtener detalle (propietario)
     @GetMapping("/{id}")
     public ResponseEntity<?> detalle(
-            @PathVariable Long id) {
-        return ResponseEntity.ok(service.obtenerPorId(id));
+            @PathVariable Long id,
+            @RequestHeader(value = "Authorization", required = false) String auth,
+            @RequestParam(value = "clientIdDev", required = false) Long clientIdDev
+    ) {
+        Long clienteId = resolveUserId(auth, clientIdDev);
+        return ResponseEntity.ok(service.obtenerDetallePropietario(clienteId, id));
     }
 
     // ==========================

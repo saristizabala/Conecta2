@@ -29,6 +29,9 @@ public class ServicioClienteService {
         var cliente = clienteRepo.findById(clienteId)
                 .orElseThrow(() -> new IllegalArgumentException("Cliente no existe"));
 
+        // Evitar updates accidentales vía JSON
+        s.setId(null);
+
         // Validación de fecha (doble check por seguridad)
         if (s.getFechaEstimada() == null || s.getFechaEstimada().isBefore(LocalDateTime.now().minusMinutes(1))) {
             throw new IllegalArgumentException("La fecha estimada no puede ser anterior al día actual");
@@ -67,9 +70,14 @@ public class ServicioClienteService {
                 .orElseThrow(() -> new IllegalArgumentException("Servicio no encontrado"));
     }
 
+    /** Detalle para el propietario (valida permisos). */
+    public Servicio obtenerDetallePropietario(Long clienteId, Long servicioId) {
+        return repo.findByIdAndCliente_Id(servicioId, clienteId)
+                .orElseThrow(() -> new SecurityException("No tienes permiso sobre este servicio"));
+    }
+
     // ==========================
     // HU006: Editar/Eliminar
-    // Solo si está PENDIENTE y es del cliente.
     // ==========================
     @Transactional
     public Servicio editarServicio(Long clienteId, Long servicioId, UpdateData data) {
@@ -93,7 +101,6 @@ public class ServicioClienteService {
         s.setUbicacion(data.ubicacion);
         s.setFechaEstimada(data.fechaEstimada);
 
-        // Si decides permitir cambiar categoría en la edición:
         if (data.categoria != null) s.setCategoria(data.categoria);
 
         return repo.save(s); // @PreUpdate setea actualizadoEn
@@ -113,7 +120,7 @@ public class ServicioClienteService {
         return s == null || s.isBlank();
     }
 
-    // ===== DTO para actualización (HU006)
+    // ===== "DTO" interno para actualización (HU006) – no creamos clases externas
     public static class UpdateData {
         public String titulo;
         public String descripcion;

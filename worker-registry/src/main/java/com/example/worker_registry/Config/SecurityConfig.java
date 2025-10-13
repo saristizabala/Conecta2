@@ -34,12 +34,12 @@ public class SecurityConfig {
 
                 // ====== HU005/HU006 Servicios ======
                 // Listar y ver detalle disponibles (trabajador/cliente)
-                .requestMatchers(HttpMethod.GET, "/api/v1/services/**").permitAll()
+                .requestMatchers(HttpMethod.GET, "/api/v1/clients/services/**").permitAll()
 
                 // Crear/editar/eliminar (cliente autenticado; cuando agregues roles: hasRole("CLIENT"))
-                .requestMatchers(HttpMethod.POST, "/api/v1/services/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/v1/services/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/services/**").authenticated()
+                .requestMatchers(HttpMethod.POST, "/api/v1/clients/services/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/v1/clients/services/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/clients/services/**").authenticated()
 
                 // Todo lo demás requiere autenticación (si hay endpoints protegidos adicionales)
                 .anyRequest().authenticated()
