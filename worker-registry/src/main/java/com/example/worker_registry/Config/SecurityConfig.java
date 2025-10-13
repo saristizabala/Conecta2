@@ -4,7 +4,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
 
@@ -14,36 +13,42 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors(Customizer.withDefaults())
+            // HU005/HU006: ADDED - CORS y CSRF
+            .cors(cors -> {}) // Usa el CorsFilter definido en CorsConfig
             .csrf(csrf -> csrf.disable())
+
+            // H2 console en <frame>
             .headers(h -> h.frameOptions(f -> f.sameOrigin()))
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+
             .authorizeHttpRequests(auth -> auth
                 // Preflight CORS
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // H2 console + error
-                .requestMatchers("/h2-console/**", "/error").permitAll()
+                // H2 Console (dev)
+                .requestMatchers("/h2-console/**").permitAll()
 
-                // Favicon y estáticos (por si el navegador los pide desde el backend)
+                // ====== AUTH público existente ======
                 .requestMatchers(
-                    "/",                 // raíz
-                    "/favicon.ico",      // ícono
-                    "/index.html",
-                    "/webjars/**",
-                    "/static/**", "/public/**", "/resources/**", "/META-INF/resources/**",
-                    "/assets/**", "/css/**", "/js/**", "/images/**"
+                    "/api/v1/auth/**"
                 ).permitAll()
 
-                // Endpoints públicos de auth (workers + clients)
-                .requestMatchers("/api/v1/auth/**").permitAll()
+                // ====== HU005/HU006 Servicios ======
+                // Listar y ver detalle disponibles (trabajador/cliente)
+                .requestMatchers(HttpMethod.GET, "/api/v1/services/**").permitAll()
 
-                // Resto: autenticado
+                // Crear/editar/eliminar (cliente autenticado; cuando agregues roles: hasRole("CLIENT"))
+                .requestMatchers(HttpMethod.POST, "/api/v1/services/**").authenticated()
+                .requestMatchers(HttpMethod.PUT, "/api/v1/services/**").authenticated()
+                .requestMatchers(HttpMethod.DELETE, "/api/v1/services/**").authenticated()
+
+                // Todo lo demás requiere autenticación (si hay endpoints protegidos adicionales)
                 .anyRequest().authenticated()
             )
-            .httpBasic(b -> b.disable())
-            .formLogin(f -> f.disable());
 
+            // Stateless (para JWT)
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+        // Nota: cuando agregues tu filtro JWT, aquí se encadena con addFilterBefore(...)
         return http.build();
     }
 }
