@@ -1,54 +1,75 @@
 package com.example.worker_registry.Config;
 
+import com.example.worker_registry.securtity.JwtAuthFilter;
+import com.example.worker_registry.securtity.JwtService;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 @Configuration
 public class SecurityConfig {
 
+    private final JwtService jwtService;
+
+    public SecurityConfig(JwtService jwtService) {
+        this.jwtService = jwtService;
+    }
+
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // HU005/HU006: ADDED - CORS y CSRF
-            .cors(cors -> {}) // Usa el CorsFilter definido en CorsConfig
+            // CORS/CSRF
+            .cors(cors -> { })       // Usa CorsConfig
             .csrf(csrf -> csrf.disable())
 
-            // H2 console en <frame>
+            // H2 console
             .headers(h -> h.frameOptions(f -> f.sameOrigin()))
 
+            // Manejo de errores de auth (401/403) en JSON simple
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((req, res, e) -> {
+                    res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    res.setContentType("application/json;charset=UTF-8");
+                    res.getWriter().write("{\"status\":401,\"mensaje\":\"No autorizado\"}");
+                })
+                .accessDeniedHandler((req, res, e) -> {
+                    res.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    res.setContentType("application/json;charset=UTF-8");
+                    res.getWriter().write("{\"status\":403,\"mensaje\":\"Acceso prohibido\"}");
+                })
+            )
+
             .authorizeHttpRequests(auth -> auth
-                // Preflight CORS
+                // Preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // H2 Console (dev)
+                // H2 console (dev)
                 .requestMatchers("/h2-console/**").permitAll()
 
-                // ====== AUTH público existente ======
-                .requestMatchers(
-                    "/api/v1/auth/**"
-                ).permitAll()
+                // AUTH público
+                .requestMatchers("/api/v1/auth/**").permitAll()
 
-                // ====== HU005/HU006 Servicios ======
-                // Listar y ver detalle disponibles (trabajador/cliente)
-                .requestMatchers(HttpMethod.GET, "/api/v1/clients/services/**").permitAll()
+                // HU005/HU006: listado público de disponibles
+                .requestMatchers(HttpMethod.GET, "/api/v1/clients/services/public/**").permitAll()
 
-                // Crear/editar/eliminar (cliente autenticado; cuando agregues roles: hasRole("CLIENT"))
-                .requestMatchers(HttpMethod.POST, "/api/v1/clients/services/**").authenticated()
-                .requestMatchers(HttpMethod.PUT, "/api/v1/clients/services/**").authenticated()
-                .requestMatchers(HttpMethod.DELETE, "/api/v1/clients/services/**").authenticated()
+                // El resto de /clients/services requiere autenticación
+                .requestMatchers("/api/v1/clients/services/**").authenticated()
 
-                // Todo lo demás requiere autenticación (si hay endpoints protegidos adicionales)
+                // Cualquier otro endpoint (ajústalo si tienes más API públicas)
                 .anyRequest().authenticated()
             )
 
-            // Stateless (para JWT)
-            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+            // JWT stateless
+            .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
 
-        // Nota: cuando agregues tu filtro JWT, aquí se encadena con addFilterBefore(...)
+            // Filtro JWT antes del UsernamePasswordAuthenticationFilter
+            .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+
         return http.build();
     }
 }
