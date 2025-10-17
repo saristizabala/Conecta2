@@ -45,18 +45,24 @@ public class JwtAuthFilter extends OncePerRequestFilter {
 
         String auth = request.getHeader(HttpHeaders.AUTHORIZATION);
         if (auth == null || !auth.startsWith("Bearer ")) {
+            // Deja que el entryPoint de SecurityConfig responda 401 genérico
             filterChain.doFilter(request, response);
             return;
         }
 
         String token = auth.substring(7).trim();
+
+        // Debe ser válido y de tipo access
         if (!jwt.isValid(token)) {
-            filterChain.doFilter(request, response);
+            response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+            response.setContentType("application/json;charset=UTF-8");
+            response.getWriter().write("{\"status\":401,\"mensaje\":\"Token inválido o expirado\"}");
             return;
         }
 
         Long userId = jwt.getUserId(token);
         String role = jwt.getRole(token); // CLIENT | WORKER
+        if (role == null) role = "CLIENT"; // fallback
 
         var authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
         AbstractAuthenticationToken authentication = new AbstractAuthenticationToken(authorities) {
@@ -69,5 +75,4 @@ public class JwtAuthFilter extends OncePerRequestFilter {
         SecurityContextHolder.getContext().setAuthentication(authentication);
         filterChain.doFilter(request, response);
     }
-    
 }

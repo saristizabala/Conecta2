@@ -23,14 +23,16 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            // CORS/CSRF
-            .cors(cors -> { })       // Usa CorsConfig
+            // ======================================================
+            // CONFIGURACIÓN BÁSICA
+            // ======================================================
+            .cors(cors -> { }) // usa tu CorsConfig global
             .csrf(csrf -> csrf.disable())
-
-            // H2 console
             .headers(h -> h.frameOptions(f -> f.sameOrigin()))
 
-            // Manejo de errores de auth (401/403) en JSON simple
+            // ======================================================
+            // MANEJO DE EXCEPCIONES (RESPUESTA JSON)
+            // ======================================================
             .exceptionHandling(ex -> ex
                 .authenticationEntryPoint((req, res, e) -> {
                     res.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
@@ -44,30 +46,30 @@ public class SecurityConfig {
                 })
             )
 
+            // ======================================================
+            // AUTORIZACIÓN DE RUTAS
+            // ======================================================
             .authorizeHttpRequests(auth -> auth
-                // Preflight
+                // CORS preflight
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                // H2 console (dev)
-                .requestMatchers("/h2-console/**").permitAll()
 
                 // AUTH público
                 .requestMatchers("/api/v1/auth/**").permitAll()
 
-                // HU005/HU006: listado público de disponibles
+                // HU005/HU006: listado público
                 .requestMatchers(HttpMethod.GET, "/api/v1/clients/services/public/**").permitAll()
 
-                // El resto de /clients/services requiere autenticación
+                // Rutas protegidas (CLIENT debe estar autenticado)
                 .requestMatchers("/api/v1/clients/services/**").authenticated()
 
-                // Cualquier otro endpoint (ajústalo si tienes más API públicas)
+                // Por defecto, todo lo demás requiere autenticación
                 .anyRequest().authenticated()
             )
 
-            // JWT stateless
+            // ======================================================
+            // SESIONES Y FILTROS
+            // ======================================================
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-            // Filtro JWT antes del UsernamePasswordAuthenticationFilter
             .addFilterBefore(new JwtAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
 
         return http.build();

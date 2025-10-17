@@ -6,7 +6,9 @@ import com.example.worker_registry.Repository.ClienteRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.util.List;
 
 @Service
@@ -32,22 +34,46 @@ public class ServicioClienteService {
         // Evitar updates accidentales vía JSON
         s.setId(null);
 
-        // Validación de fecha (doble check por seguridad)
-        if (s.getFechaEstimada() == null || s.getFechaEstimada().isBefore(LocalDateTime.now().minusMinutes(1))) {
+        // --------- Normalización de fecha ----------
+        // Si el front envía solo fecha (00:00), no debe fallar por estar "antes de ahora".
+        // Reglas:
+        // - La fecha NO puede ser anterior a HOY.
+        // - Si no viene hora (00:00) la normalizamos a 09:00 para consistencia.
+        LocalDateTime fecha = s.getFechaEstimada();
+        if (fecha == null) {
+            throw new IllegalArgumentException("La fecha estimada es obligatoria");
+        }
+
+        LocalDate hoy = LocalDate.now();
+        LocalDate fechaDia = fecha.toLocalDate();
+
+        if (fechaDia.isBefore(hoy)) {
             throw new IllegalArgumentException("La fecha estimada no puede ser anterior al día actual");
         }
+
+        // Si la hora es 00:00:00 (común cuando solo eliges fecha en UI), ajustamos a 09:00
+        if (fecha.toLocalTime().equals(LocalTime.MIDNIGHT)) {
+            fecha = LocalDateTime.of(fechaDia, LocalTime.of(9, 0));
+        }
+        s.setFechaEstimada(fecha);
+        // --------- Fin normalización fecha -----------
+
         if (s.getCategoria() == null) {
             throw new IllegalArgumentException("La categoría es obligatoria");
         }
-        if (s.getTitulo() == null || s.getTitulo().isBlank()) {
+        if (s.getTitulo() == null || s.getTitulo().trim().isEmpty()) {
             throw new IllegalArgumentException("El título no puede estar vacío");
         }
-        if (s.getDescripcion() == null || s.getDescripcion().isBlank()) {
+        if (s.getDescripcion() == null || s.getDescripcion().trim().isEmpty()) {
             throw new IllegalArgumentException("La descripción no puede estar vacía");
         }
-        if (s.getUbicacion() == null || s.getUbicacion().isBlank()) {
+        if (s.getUbicacion() == null || s.getUbicacion().trim().isEmpty()) {
             throw new IllegalArgumentException("La ubicación es obligatoria");
         }
+
+        s.setTitulo(s.getTitulo().trim());
+        s.setDescripcion(s.getDescripcion().trim());
+        s.setUbicacion(s.getUbicacion().trim());
 
         s.setCliente(cliente);
         s.setEstado(EstadoServicio.PENDIENTE);
@@ -92,18 +118,32 @@ public class ServicioClienteService {
         if (isBlank(data.titulo)) throw new IllegalArgumentException("El título no puede estar vacío");
         if (isBlank(data.descripcion)) throw new IllegalArgumentException("La descripción no puede estar vacía");
         if (isBlank(data.ubicacion)) throw new IllegalArgumentException("La ubicación es obligatoria");
-        if (data.fechaEstimada == null || data.fechaEstimada.isBefore(LocalDateTime.now().minusMinutes(1))) {
+        if (data.fechaEstimada == null) {
+            throw new IllegalArgumentException("La fecha estimada es obligatoria");
+        }
+
+        // --------- Normalización de fecha en edición ----------
+        LocalDate hoy = LocalDate.now();
+        LocalDate fechaDia = data.fechaEstimada.toLocalDate();
+
+        if (fechaDia.isBefore(hoy)) {
             throw new IllegalArgumentException("La fecha estimada no puede ser anterior al día actual");
         }
 
-        s.setTitulo(data.titulo);
-        s.setDescripcion(data.descripcion);
-        s.setUbicacion(data.ubicacion);
-        s.setFechaEstimada(data.fechaEstimada);
+        LocalDateTime fechaNormalizada = data.fechaEstimada;
+        if (fechaNormalizada.toLocalTime().equals(LocalTime.MIDNIGHT)) {
+            fechaNormalizada = LocalDateTime.of(fechaDia, LocalTime.of(9, 0));
+        }
+        // --------- Fin normalización -----------
+
+        s.setTitulo(data.titulo.trim());
+        s.setDescripcion(data.descripcion.trim());
+        s.setUbicacion(data.ubicacion.trim());
+        s.setFechaEstimada(fechaNormalizada);
 
         if (data.categoria != null) s.setCategoria(data.categoria);
 
-        return repo.save(s); // @PreUpdate setea actualizadoEn
+        return repo.save(s); // @PreUpdate setea actualizadoEn (si lo tienes en la entidad)
     }
 
     @Transactional
