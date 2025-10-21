@@ -2,8 +2,8 @@ package com.example.worker_registry.Controllers;
 
 import com.example.worker_registry.Entitys.Cliente;
 import com.example.worker_registry.Repository.ClienteRepository;
-import com.example.worker_registry.securtity.JwtService; // ajusta paquete real
 import com.example.worker_registry.Services.RegistroCliente;
+import com.example.worker_registry.securtity.JwtService;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -20,54 +20,65 @@ public class AuthClientController {
     private final JwtService jwt;
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-    public AuthClientController(RegistroCliente service, ClienteRepository repo, JwtService jwt) {
+    public AuthClientController(RegistroCliente service,
+                                ClienteRepository repo,
+                                JwtService jwt) {
         this.service = service;
         this.repo = repo;
         this.jwt = jwt;
     }
 
-    // Registro cliente
     @PostMapping("/register")
-    public ResponseEntity<?> register(@Valid @RequestBody Cliente c) {
-        var saved = service.registrarCliente(c);
+    public ResponseEntity<?> register(@Valid @RequestBody Cliente cliente) {
+        var saved = service.registrarCliente(cliente);
         return ResponseEntity.status(201).body(Map.of(
-            "id", saved.getId(),
-            "mensaje", "Registro recibido. Revisa tu correo para activar la cuenta."
+                "id", saved.getId(),
+                "mensaje", "Registro recibido. Revisa tu correo para activar la cuenta."
         ));
     }
 
-    // Verificación de cuenta del cliente
     @GetMapping("/verify")
     public ResponseEntity<?> verify(@RequestParam("token") String token) {
-        // Si usas un claim 'type' puedes validar aquí; si no, simplemente parsea el subject
         var userId = jwt.parseActivationToken(token);
         service.activarCuenta(userId);
-        return ResponseEntity.ok(Map.of("mensaje", "Cuenta de cliente activada correctamente. Ya puedes iniciar sesión."));
+        return ResponseEntity.ok(Map.of(
+                "mensaje", "Cuenta de cliente activada correctamente. Ya puedes iniciar sesion."
+        ));
     }
 
-    // Login cliente
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody Map<String, String> req) {
-        var email = req.getOrDefault("email", "");
-        var password = req.getOrDefault("password", "");
+    public ResponseEntity<?> login(@RequestBody Map<String, String> payload) {
+        String email = payload.containsKey("email")
+                ? payload.get("email")
+                : payload.getOrDefault("correo", "");
+        email = email == null ? "" : email.trim();
 
-        var c = repo.findByCorreo(email).orElse(null);
-        if (c == null) {
-            return ResponseEntity.status(401).body(Map.of("mensaje", "Credenciales inválidas"));
+        String password = payload.containsKey("password")
+                ? payload.get("password")
+                : payload.getOrDefault("contrasena", "");
+        password = password == null ? "" : password;
+
+        if (email.isEmpty() || password.isEmpty()) {
+            return ResponseEntity.status(401).body(Map.of("mensaje", "Credenciales invalidas"));
         }
-        if (!c.isActivo()) {
+
+        var cliente = repo.findByCorreo(email).orElse(null);
+        if (cliente == null) {
+            return ResponseEntity.status(401).body(Map.of("mensaje", "Credenciales invalidas"));
+        }
+        if (!cliente.isActivo()) {
             return ResponseEntity.status(403).body(Map.of("mensaje", "Cuenta no verificada. Revisa tu correo."));
         }
-        if (!encoder.matches(password, c.getContrasena())) {
-            return ResponseEntity.status(401).body(Map.of("mensaje", "Credenciales inválidas"));
+        if (!encoder.matches(password, cliente.getContrasena())) {
+            return ResponseEntity.status(401).body(Map.of("mensaje", "Credenciales invalidas"));
         }
 
-        var access = jwt.generateAccessToken(c.getId(), "CLIENT");
+        var access = jwt.generateAccessToken(cliente.getId(), "CLIENT");
         return ResponseEntity.ok(Map.of(
-            "token", access,
-            "userId", c.getId(),
-            "nombreCompleto", c.getNombreCompleto(),
-            "role", "CLIENT"
+                "token", access,
+                "userId", cliente.getId(),
+                "nombreCompleto", cliente.getNombreCompleto(),
+                "role", "CLIENT"
         ));
     }
 }

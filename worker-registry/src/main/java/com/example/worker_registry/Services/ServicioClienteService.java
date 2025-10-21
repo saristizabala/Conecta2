@@ -126,6 +126,7 @@ public class ServicioClienteService {
         public String descripcion;
         public CategoriaServicio categoria; // opcional en edición
         public String ubicacion;
+        @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
         public LocalDateTime fechaEstimada;
     }
 }

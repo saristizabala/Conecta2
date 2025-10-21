@@ -8,4 +8,5 @@ public interface TrabajadorRepository extends JpaRepository<Trabajador, Long> {
   boolean existsByCorreo(String correo);
   boolean existsByCelular(String celular);
   Optional<Trabajador> findByCorreo(String correo);
+  Optional<Trabajador> findByCelular(String celular);
 }

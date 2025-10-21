@@ -2,9 +2,10 @@ package com.example.worker_registry.Controllers;
 
 import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Services.ServicioClienteService;
-import com.example.worker_registry.securtity.JwtService; // tu paquete 'securtity'
+import com.example.worker_registry.securtity.AuthenticatedUser;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -14,99 +15,73 @@ import java.util.Map;
 public class ClienteServicioController {
 
     private final ServicioClienteService service;
-    private final JwtService jwt; // inyectable si existe
-    private final boolean jwtAvailable;
 
-    public ClienteServicioController(ServicioClienteService service,
-                                     @SuppressWarnings("SpringJavaInjectionPointsAutowiringInspection")
-                                     @org.springframework.beans.factory.annotation.Autowired(required = false)
-                                     JwtService jwt) {
+    public ClienteServicioController(ServicioClienteService service) {
         this.service = service;
-        this.jwt = jwt;
-        this.jwtAvailable = (jwt != null);
     }
 
-    // ==========================
-    // HU005: Publicar servicio
-    // ==========================
     @PostMapping
-    public ResponseEntity<?> crear(
-            @Valid @RequestBody Servicio s,
-            @RequestHeader(value = "Authorization", required = false) String auth,
-            @RequestParam(value = "clientIdDev", required = false) Long clientIdDev
-    ) {
-        Long clienteId = resolveUserId(auth, clientIdDev);
-        var saved = service.crearServicio(clienteId, s);
+    public ResponseEntity<?> crear(@AuthenticationPrincipal AuthenticatedUser user,
+                                   @Valid @RequestBody Servicio servicio) {
+        Long clienteId = requireClient(user);
+        var saved = service.crearServicio(clienteId, servicio);
         return ResponseEntity.status(201).body(Map.of(
                 "id", saved.getId(),
                 "mensaje", "Servicio publicado correctamente"
         ));
     }
 
-    // Mis servicios
+    @GetMapping
+    public ResponseEntity<?> listarPropios(@AuthenticationPrincipal AuthenticatedUser user) {
+        return ResponseEntity.ok(service.listarPorCliente(requireClient(user)));
+    }
+
     @GetMapping("/my")
-    public ResponseEntity<?> misServicios(
-            @RequestHeader(value = "Authorization", required = false) String auth,
-            @RequestParam(value = "clientIdDev", required = false) Long clientIdDev
-    ) {
-        Long clienteId = resolveUserId(auth, clientIdDev);
-        return ResponseEntity.ok(service.listarPorCliente(clienteId));
+    public ResponseEntity<?> listarPropiosAlias(@AuthenticationPrincipal AuthenticatedUser user) {
+        return ResponseEntity.ok(service.listarPorCliente(requireClient(user)));
     }
 
-    // Obtener detalle (propietario)
     @GetMapping("/{id}")
-    public ResponseEntity<?> detalle(
-            @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String auth,
-            @RequestParam(value = "clientIdDev", required = false) Long clientIdDev
-    ) {
-        Long clienteId = resolveUserId(auth, clientIdDev);
-        return ResponseEntity.ok(service.obtenerDetallePropietario(clienteId, id));
+    public ResponseEntity<?> detalle(@AuthenticationPrincipal AuthenticatedUser user,
+                                     @PathVariable Long id) {
+        return ResponseEntity.ok(service.obtenerDetallePropietario(requireClient(user), id));
     }
 
-    // ==========================
-    // HU006: editar / eliminar
-    // ==========================
     @PutMapping("/{id}")
-    public ResponseEntity<?> editar(
-            @PathVariable Long id,
-            @RequestBody ServicioClienteService.UpdateData body,
-            @RequestHeader(value = "Authorization", required = false) String auth,
-            @RequestParam(value = "clientIdDev", required = false) Long clientIdDev
-    ) {
-        Long clienteId = resolveUserId(auth, clientIdDev);
-        var upd = service.editarServicio(clienteId, id, body);
+    public ResponseEntity<?> editar(@AuthenticationPrincipal AuthenticatedUser user,
+                                    @PathVariable Long id,
+                                    @RequestBody ServicioClienteService.UpdateData body) {
+        var actualizado = service.editarServicio(requireClient(user), id, body);
         return ResponseEntity.ok(Map.of(
-                "id", upd.getId(),
+                "id", actualizado.getId(),
                 "mensaje", "Servicio editado correctamente"
         ));
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> eliminar(
-            @PathVariable Long id,
-            @RequestHeader(value = "Authorization", required = false) String auth,
-            @RequestParam(value = "clientIdDev", required = false) Long clientIdDev
-    ) {
-        Long clienteId = resolveUserId(auth, clientIdDev);
-        service.eliminarServicio(clienteId, id);
+    public ResponseEntity<?> eliminar(@AuthenticationPrincipal AuthenticatedUser user,
+                                      @PathVariable Long id) {
+        service.eliminarServicio(requireClient(user), id);
         return ResponseEntity.ok(Map.of("mensaje", "Servicio eliminado correctamente"));
     }
 
-    // ==========================
-    // Listado público (disponibles)
-    // ==========================
     @GetMapping("/public/available")
     public ResponseEntity<?> disponibles() {
         return ResponseEntity.ok(service.listarDisponibles());
     }
 
-    // ===== Helper para obtener userId de JWT o parámetro dev =====
-    private Long resolveUserId(String authHeader, Long fallback) {
-        if (jwtAvailable && authHeader != null && authHeader.startsWith("Bearer ")) {
-            return jwt.getUserId(authHeader.substring(7));
+    @GetMapping("/public/by-client/{clientId}")
+    public ResponseEntity<?> disponiblesPorCliente(@PathVariable Long clientId) {
+        return ResponseEntity.ok(service.listarPorCliente(clientId));
+    }
+
+    private Long requireClient(AuthenticatedUser user) {
+        if (user == null) {
+            throw new org.springframework.security.access.AccessDeniedException("Usuario no autenticado");
         }
-        if (fallback != null) return fallback;
-        throw new IllegalArgumentException("Falta Authorization Bearer o parámetro ?clientIdDev= en modo dev");
+        if (!user.hasRole("CLIENT")) {
+            throw new org.springframework.security.access.AccessDeniedException("Rol no autorizado");
+        }
+        return user.userId();
     }
 }

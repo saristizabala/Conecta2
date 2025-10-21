@@ -35,6 +35,16 @@ public class ClienteController {
         }
     }
 
+    @PutMapping("/{id:\\d+}")
+    public ResponseEntity<?> actualizarCliente(@PathVariable Long id, @RequestBody Cliente cliente) {
+        try {
+            Cliente actualizado = registroCliente.actualizarCliente(id, cliente);
+            return ResponseEntity.ok(actualizado);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @GetMapping
     public ResponseEntity<List<Cliente>> listarClientes() {
         return ResponseEntity.ok().body(registroCliente.listarClientes());

@@ -46,7 +46,7 @@ public class Servicio {
     @NotNull(message = "La fecha estimada es obligatoria")
     @FutureOrPresent(message = "La fecha estimada no puede ser anterior a hoy")
     @Column(nullable = false)
-    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
     private LocalDateTime fechaEstimada;
 
     // ====== Estado ======
@@ -70,5 +70,10 @@ public class Servicio {
     @PreUpdate
     void onUpdate() {
         this.actualizadoEn = LocalDateTime.now();
+    }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("clienteId")
+    public Long getClienteId() {
+        return cliente != null ? cliente.getId() : null;
     }
 }

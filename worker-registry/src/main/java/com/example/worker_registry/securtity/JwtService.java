@@ -1,6 +1,8 @@
 package com.example.worker_registry.securtity;
 
-import io.jsonwebtoken.*;
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -14,7 +16,7 @@ import java.util.Date;
 public class JwtService {
 
     @Value("${app.jwt.secret}")
-    private String secret; // Mínimo 32 chars
+    private String secret;
 
     @Value("${app.jwt.activation.exp-min:15}")
     private long activationExpMin;
@@ -26,7 +28,7 @@ public class JwtService {
         return Keys.hmacShaKeyFor(secret.getBytes(StandardCharsets.UTF_8));
     }
 
-    // ===== ACTIVACIÓN =====
+    // ===== Activation =====
     public String generateActivationToken(Long userId) {
         Instant now = Instant.now();
         return Jwts.builder()
@@ -40,31 +42,23 @@ public class JwtService {
 
     public boolean isActivationToken(String token) {
         try {
-            Claims c = parse(token);
-            return "activation".equals(c.get("type"));
-        } catch (Exception e) {
+            Claims claims = parse(token);
+            return "activation".equals(claims.get("type"));
+        } catch (Exception ex) {
             return false;
         }
     }
 
-    public Long getUserId(String token) {
-        return Long.valueOf(parse(token).getSubject());
-    }
-
-    /**
-     * ✅ Nuevo: usado por AuthClientController/AuthController
-     * Valida que el token sea de tipo "activation" y retorna el userId (subject).
-     */
     public Long parseActivationToken(String token) {
-        Claims c = parse(token);
-        Object type = c.get("type");
+        Claims claims = parse(token);
+        Object type = claims.get("type");
         if (type == null || !"activation".equals(type.toString())) {
-            throw new IllegalArgumentException("Token inválido para activación");
+            throw new IllegalArgumentException("Token invalido para activacion");
         }
-        return Long.valueOf(c.getSubject());
+        return Long.valueOf(claims.getSubject());
     }
 
-    // ===== ACCESO (JWT para usar después del login) =====
+    // ===== Access =====
     public String generateAccessToken(Long userId, String role) {
         Instant now = Instant.now();
         return Jwts.builder()
@@ -77,7 +71,18 @@ public class JwtService {
                 .compact();
     }
 
-    // ===== Helper =====
+    public AccessTokenPayload parseAccessToken(String token) {
+        Claims claims = parse(token);
+        Object type = claims.get("type");
+        if (type == null || !"access".equals(type.toString())) {
+            throw new IllegalArgumentException("Token no corresponde a un acceso valido");
+        }
+        String role = String.valueOf(claims.get("role"));
+        Long userId = Long.valueOf(claims.getSubject());
+        return new AccessTokenPayload(userId, role);
+    }
+
+    // ===== Helpers =====
     private Claims parse(String token) {
         return Jwts.parserBuilder()
                 .setSigningKey(key())
@@ -85,4 +90,6 @@ public class JwtService {
                 .parseClaimsJws(token)
                 .getBody();
     }
+
+    public record AccessTokenPayload(Long userId, String role) {}
 }

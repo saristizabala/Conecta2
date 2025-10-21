@@ -154,4 +154,44 @@ public class RegistroCliente {
 
         mailService.send(c.getCorreo(), subject, body);
     }
+    /**
+     * Permite que un cliente actualice los datos de su cuenta.
+     */
+    @Transactional
+    public Cliente actualizarCliente(Long id, Cliente cambios) {
+        Cliente existente = clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+
+        if (cambios.getNombreCompleto() != null && !cambios.getNombreCompleto().isBlank()) {
+            existente.setNombreCompleto(cambios.getNombreCompleto());
+        }
+
+        if (cambios.getCorreo() != null && !cambios.getCorreo().isBlank()
+                && !cambios.getCorreo().equalsIgnoreCase(existente.getCorreo())) {
+            clienteRepository.findByCorreo(cambios.getCorreo())
+                    .filter(otro -> !otro.getId().equals(id))
+                    .ifPresent(otro -> { throw new RuntimeException("El correo ya esta registrado"); });
+            existente.setCorreo(cambios.getCorreo());
+        }
+
+        if (cambios.getCelular() != null && !cambios.getCelular().isBlank()
+                && !cambios.getCelular().equals(existente.getCelular())) {
+            clienteRepository.findByCelular(cambios.getCelular())
+                    .filter(otro -> !otro.getId().equals(id))
+                    .ifPresent(otro -> { throw new RuntimeException("El numero de celular ya esta registrado"); });
+            existente.setCelular(cambios.getCelular());
+        }
+
+        if (cambios.getContrasena() != null || cambios.getConfirmarContrasena() != null) {
+            if (cambios.getContrasena() == null || cambios.getConfirmarContrasena() == null) {
+                throw new IllegalArgumentException("Debe ingresar y confirmar la contrasena");
+            }
+            if (!cambios.getContrasena().equals(cambios.getConfirmarContrasena())) {
+                throw new IllegalArgumentException("Las contrasenas no coinciden");
+            }
+            existente.setContrasena(encoder.encode(cambios.getContrasena()));
+        }
+
+        return clienteRepository.save(existente);
+    }
 }

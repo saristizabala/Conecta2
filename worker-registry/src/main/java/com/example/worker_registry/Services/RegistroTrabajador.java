@@ -89,4 +89,49 @@ public class RegistroTrabajador {
             repo.save(t);
         }
     }
+
+    /**
+     * Permite que un trabajador actualice los datos de su cuenta.
+     */
+    @Transactional
+    public Trabajador actualizarTrabajador(Long id, Trabajador cambios) {
+        var existente = repo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Trabajador no encontrado"));
+
+        if (cambios.getNombreCompleto() != null && !cambios.getNombreCompleto().isBlank()) {
+            existente.setNombreCompleto(cambios.getNombreCompleto());
+        }
+
+        if (cambios.getCorreo() != null && !cambios.getCorreo().isBlank()
+                && !cambios.getCorreo().equalsIgnoreCase(existente.getCorreo())) {
+            repo.findByCorreo(cambios.getCorreo())
+                    .filter(otro -> !otro.getId().equals(id))
+                    .ifPresent(otro -> { throw new RuntimeException("El correo ya esta registrado"); });
+            existente.setCorreo(cambios.getCorreo());
+        }
+
+        if (cambios.getCelular() != null && !cambios.getCelular().isBlank()
+                && !cambios.getCelular().equals(existente.getCelular())) {
+            repo.findByCelular(cambios.getCelular())
+                    .filter(otro -> !otro.getId().equals(id))
+                    .ifPresent(otro -> { throw new RuntimeException("El numero de celular ya esta registrado"); });
+            existente.setCelular(cambios.getCelular());
+        }
+
+        if (cambios.getAreaServicio() != null && !cambios.getAreaServicio().isBlank()) {
+            existente.setAreaServicio(cambios.getAreaServicio());
+        }
+
+        if (cambios.getContrasena() != null || cambios.getConfirmarContrasena() != null) {
+            if (cambios.getContrasena() == null || cambios.getConfirmarContrasena() == null) {
+                throw new IllegalArgumentException("Debe ingresar y confirmar la contrasena");
+            }
+            if (!cambios.getContrasena().equals(cambios.getConfirmarContrasena())) {
+                throw new IllegalArgumentException("Las contrasenas no coinciden");
+            }
+            existente.setContrasena(encoder.encode(cambios.getContrasena()));
+        }
+
+        return repo.save(existente);
+    }
 }
