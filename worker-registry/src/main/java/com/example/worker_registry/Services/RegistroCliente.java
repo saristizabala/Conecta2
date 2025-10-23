@@ -4,9 +4,12 @@ import com.example.worker_registry.Entitys.Cliente;
 import com.example.worker_registry.Repository.ClienteRepository;
 import com.example.worker_registry.securtity.JwtService;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.util.List;
 
 @Service
@@ -19,7 +22,7 @@ public class RegistroCliente {
     // Encoder local
     private final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
-    // Para construir el enlace de activación
+    // Para construir el enlace de activacion
     @Value("${app.base-url}")
     private String baseUrl;
 
@@ -32,53 +35,43 @@ public class RegistroCliente {
     }
 
     /**
-     * ✅ Mantiene tu lógica y agrega:
-     * - Validación confirmarContrasena
-     * - Encriptación de contraseña
-     * - Marcado como inactivo
-     * - Envío de email con enlace de verificación (JWT)
+     * HU: mantiene la logica original y anade validaciones y notificaciones.
      */
     @Transactional
     public Cliente registrarCliente(Cliente cliente) {
-        // Validaciones básicas (además de @Valid en el controller si lo usas)
-        if (cliente.getContrasena() == null || cliente.getConfirmarContrasena() == null) {
-            throw new IllegalArgumentException("Debe ingresar y confirmar la contraseña");
+        String password = cliente.getContrasena();
+        String confirm = cliente.getConfirmarContrasena();
+
+        if (isBlank(password)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "La contrasena es obligatoria");
         }
-        if (!cliente.getContrasena().equals(cliente.getConfirmarContrasena())) {
-            throw new IllegalArgumentException("Las contraseñas no coinciden");
+        if (confirm != null && confirm.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Debe confirmar la contrasena");
+        }
+        if (confirm == null) {
+            confirm = password;
+        }
+        if (!password.equals(confirm)) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Las contrasenas no coinciden");
         }
 
-        // Unicidad por correo (tu lógica original)
         if (clienteRepository.existsByCorreo(cliente.getCorreo())) {
-            throw new RuntimeException("El correo ya está registrado");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El correo ya esta registrado");
         }
 
-        // (Opcional) Unicidad por celular si agregaste existsByCelular en el repositorio
-        try {
-            var m = clienteRepository.getClass().getMethod("existsByCelular", String.class);
-            boolean exists = (boolean) m.invoke(clienteRepository, cliente.getCelular());
-            if (exists) throw new RuntimeException("El número de celular ya está registrado");
-        } catch (NoSuchMethodException ignored) {
-            // Si no existe el método en el repo, omitimos la validación de celular
-        } catch (Exception e) {
-            throw new RuntimeException("Error validando celular: " + e.getMessage());
+        if (!isBlank(cliente.getCelular()) && clienteRepository.existsByCelular(cliente.getCelular())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "El numero de celular ya esta registrado");
         }
 
-        // Encriptar contraseña y preparar entidad
-        cliente.setContrasena(encoder.encode(cliente.getContrasena()));
-        cliente.setConfirmarContrasena(null); // no persistir campo de confirmación
-        cliente.setActivo(false);             // pendiente de verificación
+        cliente.setContrasena(encoder.encode(password));
+        cliente.setConfirmarContrasena(null);
+        cliente.setActivo(false);
 
-        // Guardar
         Cliente saved = clienteRepository.save(cliente);
 
-        // Generar token de activación
         String token = jwtService.generateActivationToken(saved.getId());
+        String link = baseUrl + "/api/v1/auth/clients/verify?token=" + token;
 
-        // Construir enlace para verificación (ajusta ruta si usas otra convención)
-        String link = baseUrl + "/api/v1/auth/clients/verify?token=" + token; 
-
-        // Enviar correo
         String subject = "Activa tu cuenta Conecta2 (Cliente)";
         String body = """
                 Hola %s,
@@ -98,8 +91,12 @@ public class RegistroCliente {
         return saved;
     }
 
+    private boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
+
     /**
-     * ✅ Mantiene tu lógica original.
+     * Mantiene la logica original.
      */
     public Cliente obtenerClientePorCorreo(String correo) {
         return clienteRepository.findByCorreo(correo)
@@ -107,14 +104,14 @@ public class RegistroCliente {
     }
 
     /**
-     * ✅ Mantiene tu lógica original.
+     * Mantiene la logica original.
      */
     public List<Cliente> listarClientes() {
         return clienteRepository.findAll();
     }
 
     /**
-     * 🔹 Nuevo: activar cuenta desde el controlador de verificación.
+     * Activa la cuenta desde el controlador de verificacion.
      */
     @Transactional
     public void activarCuenta(Long id) {
@@ -127,24 +124,24 @@ public class RegistroCliente {
     }
 
     /**
-     * 🔹 Nuevo (opcional): reenvío de activación.
+     * Reenvia el correo de activacion si la cuenta aun no esta activa.
      */
     public void reenviarActivacion(String email) {
         Cliente c = clienteRepository.findByCorreo(email)
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
 
         if (c.isActivo()) {
-            throw new IllegalStateException("La cuenta ya está activa");
+            throw new IllegalStateException("La cuenta ya esta activa");
         }
 
         String token = jwtService.generateActivationToken(c.getId());
-        String link = baseUrl + "/api/v1/clients/auth/verify?token=" + token;
+        String link = baseUrl + "/api/v1/auth/clients/verify?token=" + token;
 
-        String subject = "Reenvío: activa tu cuenta Conecta2 (Cliente)";
+        String subject = "Reenvio: activa tu cuenta Conecta2 (Cliente)";
         String body = """
                 Hola %s,
 
-                Aquí tienes un nuevo enlace para activar tu cuenta:
+                Aqui tienes un nuevo enlace para activar tu cuenta:
 
                 %s
 
@@ -154,6 +151,7 @@ public class RegistroCliente {
 
         mailService.send(c.getCorreo(), subject, body);
     }
+
     /**
      * Permite que un cliente actualice los datos de su cuenta.
      */

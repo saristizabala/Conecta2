@@ -52,6 +52,10 @@ public class Cliente {
     // ❌ Se quita @NotBlank para no bloquear por Bean Validation
     @JsonProperty(value = "confirmarContrasena", access = JsonProperty.Access.WRITE_ONLY)
     private String confirmarContrasena;
+    @JsonProperty(value = "confirmPassword", access = JsonProperty.Access.WRITE_ONLY)
+    public void setConfirmPasswordAlias(String confirmPassword) {
+        this.confirmarContrasena = confirmPassword;
+    }
 
     // ✅ Celular único
     @NotBlank(message = "El número de celular es obligatorio")
