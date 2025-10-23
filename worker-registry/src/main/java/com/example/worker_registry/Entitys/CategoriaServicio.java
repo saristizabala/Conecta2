@@ -40,4 +40,18 @@ public enum CategoriaServicio {
     public String toJson() {
         return name();
     }
+
+    public String getDisplayName() {
+        return switch (this) {
+            case PLOMERIA -> "Plomeria";
+            case CARPINTERIA -> "Carpinteria";
+            case ASEO -> "Aseo";
+            case ELECTRICIDAD -> "Electricidad";
+            case PINTURA -> "Pintura";
+            case JARDINERIA -> "Jardineria";
+            case COSTURA -> "Costura";
+            case COCINA -> "Cocina";
+            case TECNOLOGIA -> "Tecnologia";
+        };
+    }
 }

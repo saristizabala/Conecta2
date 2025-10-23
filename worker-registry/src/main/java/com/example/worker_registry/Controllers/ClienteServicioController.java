@@ -1,5 +1,6 @@
 package com.example.worker_registry.Controllers;
 
+import com.example.worker_registry.Entitys.CategoriaServicio;
 import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Services.ServicioClienteService;
 import com.example.worker_registry.securtity.AuthenticatedUser;
@@ -8,6 +9,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -44,7 +47,13 @@ public class ClienteServicioController {
     @GetMapping("/{id}")
     public ResponseEntity<?> detalle(@AuthenticationPrincipal AuthenticatedUser user,
                                      @PathVariable Long id) {
-        return ResponseEntity.ok(service.obtenerDetallePropietario(requireClient(user), id));
+        return ResponseEntity.ok(obtenerDetallePropio(user, id));
+    }
+
+    @GetMapping("/my/{id}")
+    public ResponseEntity<?> detalleAlias(@AuthenticationPrincipal AuthenticatedUser user,
+                                          @PathVariable Long id) {
+        return ResponseEntity.ok(obtenerDetallePropio(user, id));
     }
 
     @PutMapping("/{id}")
@@ -75,6 +84,14 @@ public class ClienteServicioController {
         return ResponseEntity.ok(service.listarPorCliente(clientId));
     }
 
+    @GetMapping("/categories")
+    public ResponseEntity<List<CategoriaOption>> categorias() {
+        var options = Arrays.stream(CategoriaServicio.values())
+                .map(cat -> new CategoriaOption(cat.toJson(), cat.getDisplayName()))
+                .toList();
+        return ResponseEntity.ok(options);
+    }
+
     private Long requireClient(AuthenticatedUser user) {
         if (user == null) {
             throw new org.springframework.security.access.AccessDeniedException("Usuario no autenticado");
@@ -84,4 +101,10 @@ public class ClienteServicioController {
         }
         return user.userId();
     }
+
+    private Servicio obtenerDetallePropio(AuthenticatedUser user, Long id) {
+        return service.obtenerDetallePropietario(requireClient(user), id);
+    }
+
+    public record CategoriaOption(String value, String label) {}
 }
