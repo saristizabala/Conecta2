@@ -19,8 +19,7 @@ public class CorsConfig {
         cfg.setAllowedOriginPatterns(List.of(
                 "http://localhost:*",
                 "http://127.0.0.1:*",
-                "http://10.0.2.2:*",
-                "http://localhost:8080"
+                "http://10.0.2.2:*"
         ));
 
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
