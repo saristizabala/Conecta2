@@ -28,7 +28,8 @@ public class AuthTrabajadorController {
         this.jwt = jwt;
     }
 
-    @PostMapping("/workers/register")
+    // Accept POST to both /api/v1/auth/workers and /api/v1/auth/workers/register
+    @PostMapping({"/workers", "/workers/register"})
     public ResponseEntity<?> registerWorker(@Valid @RequestBody Trabajador trabajador) {
         var saved = regService.registrarTrabajador(trabajador);
         return ResponseEntity.status(201).body(Map.of(

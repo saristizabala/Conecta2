@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.stereotype.Service;
 import org.springframework.mail.javamail.MimeMessageHelper;
+import org.springframework.scheduling.annotation.Async;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -20,13 +21,21 @@ public class MailService {
 
   @Value("${spring.mail.username}")
   private String from; // Debe ser la misma cuenta usada en spring.mail.username
+  
+  @Value("${app.mail.enabled:true}")
+  private boolean mailEnabled;
 
   public MailService(JavaMailSender mailSender) {
     this.mailSender = mailSender;
   }
 
+  @Async
   public void send(String to, String subject, String body) {
     try {
+      if (!mailEnabled) {
+        log.info("[MAIL-DISABLED] Simulando envio a {} | Asunto: {}", to, subject);
+        return;
+      }
       MimeMessage mime = mailSender.createMimeMessage();
       MimeMessageHelper helper = new MimeMessageHelper(mime, false, StandardCharsets.UTF_8.name());
 

@@ -20,7 +20,7 @@ public class CorsConfig {
                 "http://localhost:*",
                 "http://127.0.0.1:*",
                 "http://10.0.2.2:*",
-                "https://conecta2.onrender.com"
+                "http://localhost:8080"
         ));
 
         cfg.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));

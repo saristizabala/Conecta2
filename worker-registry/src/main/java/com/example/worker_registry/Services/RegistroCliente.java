@@ -26,6 +26,10 @@ public class RegistroCliente {
     @Value("${app.base-url}")
     private String baseUrl;
 
+    // Controla si se auto-activa o se envia correo de verificacion
+    @Value("${app.activation.auto:true}")
+    private boolean activationAuto;
+
     public RegistroCliente(ClienteRepository clienteRepository,
                            JwtService jwtService,
                            MailService mailService) {
@@ -65,28 +69,34 @@ public class RegistroCliente {
 
         cliente.setContrasena(encoder.encode(password));
         cliente.setConfirmarContrasena(null);
-        cliente.setActivo(false);
+        // Activación condicional (evita bloqueo de SMTP en Render)
+        boolean autoActivate = activationAuto;
+
+        cliente.setActivo(autoActivate);
 
         Cliente saved = clienteRepository.save(cliente);
 
-        String token = jwtService.generateActivationToken(saved.getId());
-        String link = baseUrl + "/api/v1/auth/clients/verify?token=" + token;
+        // Solo envia correo si no hay auto-activación
+        if (!autoActivate) {
+            String token = jwtService.generateActivationToken(saved.getId());
+            String link = baseUrl + "/api/v1/auth/clients/verify?token=" + token;
 
-        String subject = "Activa tu cuenta Conecta2 (Cliente)";
-        String body = """
-                Hola %s,
+            String subject = "Activa tu cuenta Conecta2 (Cliente)";
+            String body = """
+                    Hola %s,
 
-                Gracias por registrarte en Conecta2. Para activar tu cuenta, haz clic en el siguiente enlace:
+                    Gracias por registrarte en Conecta2. Para activar tu cuenta, haz clic en el siguiente enlace:
 
-                %s
+                    %s
 
-                Si no solicitaste este registro, ignora este mensaje.
+                    Si no solicitaste este registro, ignora este mensaje.
 
-                Saludos,
-                Equipo Conecta2
-                """.formatted(saved.getNombreCompleto(), link);
+                    Saludos,
+                    Equipo Conecta2
+                    """.formatted(saved.getNombreCompleto(), link);
 
-        mailService.send(saved.getCorreo(), subject, body);
+            mailService.send(saved.getCorreo(), subject, body);
+        }
 
         return saved;
     }

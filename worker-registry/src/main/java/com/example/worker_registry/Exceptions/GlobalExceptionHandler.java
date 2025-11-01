@@ -8,6 +8,9 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
+import org.springframework.web.servlet.NoHandlerFoundException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.ConstraintViolation;
@@ -102,6 +105,20 @@ public class GlobalExceptionHandler {
     }
 
     // Genérico 500
+    // 404: ruta no encontrada o recurso no localizado
+    @ExceptionHandler({NoHandlerFoundException.class, NoResourceFoundException.class})
+    public ResponseEntity<Map<String, Object>> handleNoHandler(Exception ex) {
+        return build(HttpStatus.NOT_FOUND, "Ruta no encontrada", List.of(ex.getMessage()));
+    }
+
+    // 405: método HTTP no soportado
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<Map<String, Object>> handleMethodNotSupported(HttpRequestMethodNotSupportedException ex) {
+        String allowed = ex.getSupportedHttpMethods() != null ? ex.getSupportedHttpMethods().toString() : "";
+        String msg = String.format("Método no permitido. Usa uno de: %s", allowed);
+        return build(HttpStatus.METHOD_NOT_ALLOWED, msg, List.of(ex.getMessage()));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneric(Exception ex) {
         return build(HttpStatus.INTERNAL_SERVER_ERROR,

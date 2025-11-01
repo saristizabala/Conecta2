@@ -19,6 +19,9 @@ public class RegistroTrabajador {
     @Value("${app.base-url}")
     private String baseUrl; // ej: http://localhost:8080
 
+    @Value("${app.activation.auto:true}")
+    private boolean activationAuto;
+
     public RegistroTrabajador(TrabajadorRepository repo, JwtService jwt, MailService mail) {
         this.repo = repo;
         this.jwt = jwt;
@@ -46,9 +49,14 @@ public class RegistroTrabajador {
 
         t.setContrasena(encoder.encode(t.getContrasena()));
         t.setConfirmarContrasena(null);
-        t.setActivo(false);
+        boolean autoActivate = activationAuto;
+        t.setActivo(autoActivate);
 
         var saved = repo.save(t);
+
+        if (autoActivate) {
+            return saved;
+        }
 
         // Token de activación y envío de correo
         try {

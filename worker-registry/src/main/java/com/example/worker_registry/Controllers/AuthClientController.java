@@ -28,7 +28,8 @@ public class AuthClientController {
         this.jwt = jwt;
     }
 
-    @PostMapping("/register")
+    // Accept POST to both /api/v1/auth/clients and /api/v1/auth/clients/register
+    @PostMapping({"", "/register"})
     public ResponseEntity<?> register(@Valid @RequestBody Cliente cliente) {
         var saved = service.registrarCliente(cliente);
         return ResponseEntity.status(201).body(Map.of(
