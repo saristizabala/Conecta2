@@ -1,6 +1,10 @@
 package com.example.worker_registry.Services;
 
-import com.example.worker_registry.Entitys.*;
+import com.example.worker_registry.Entitys.EstadoNegociacion;
+import com.example.worker_registry.Entitys.EstadoServicio;
+import com.example.worker_registry.Entitys.Oferta;
+import com.example.worker_registry.Entitys.ParticipanteOferta;
+import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Repository.OfertaRepository;
 import com.example.worker_registry.Repository.ServicioRepository;
 import com.example.worker_registry.Repository.TrabajadorRepository;
@@ -17,19 +21,25 @@ public class ServicioTrabajadorService {
     private final ServicioRepository servicioRepo;
     private final TrabajadorRepository trabajadorRepo;
     private final OfertaRepository ofertaRepo;
+    private final OfertaService ofertaService;
 
     public ServicioTrabajadorService(ServicioRepository servicioRepo,
                                      TrabajadorRepository trabajadorRepo,
-                                     OfertaRepository ofertaRepo) {
+                                     OfertaRepository ofertaRepo,
+                                     OfertaService ofertaService) {
         this.servicioRepo = servicioRepo;
         this.trabajadorRepo = trabajadorRepo;
         this.ofertaRepo = ofertaRepo;
+        this.ofertaService = ofertaService;
     }
 
     public List<Servicio> listarDisponiblesPorArea(Long trabajadorId) {
         var trabajador = trabajadorRepo.findById(trabajadorId)
                 .orElseThrow(() -> new EntityNotFoundException("Trabajador no encontrado"));
-        var categoria = parseCategoria(trabajador.getAreaServicio());
+        var categoria = trabajador.getAreaServicio();
+        if (categoria == null) {
+            throw new IllegalStateException("El trabajador no tiene un area de servicio valida");
+        }
         return servicioRepo.findByEstadoAndCategoria(EstadoServicio.PENDIENTE, categoria);
     }
 
@@ -51,31 +61,50 @@ public class ServicioTrabajadorService {
             throw new IllegalStateException("Solo se puede ofertar en servicios PENDIENTES");
         }
 
-        var categoriaTrabajador = parseCategoria(trabajador.getAreaServicio());
+        var categoriaTrabajador = trabajador.getAreaServicio();
+        if (categoriaTrabajador == null) {
+            throw new IllegalStateException("El trabajador no tiene un area de servicio valida");
+        }
         if (servicio.getCategoria() != categoriaTrabajador) {
             throw new IllegalArgumentException("El servicio no corresponde a tu area de servicio");
         }
 
-        var existente = ofertaRepo.findByServicio_IdAndTrabajador_Id(servicioId, trabajadorId);
-        if (existente.isPresent()) {
-            throw new IllegalStateException("Ya has ofertado en este servicio");
+        var ofertaExistente = ofertaRepo.findByServicio_IdAndTrabajador_Id(servicioId, trabajadorId);
+        var negociacionActiva = ofertaRepo.findFirstByServicio_IdAndEstado(servicioId, EstadoNegociacion.EN_NEGOCIACION);
+        if (negociacionActiva.isPresent()) {
+            var activa = negociacionActiva.get();
+            Long trabajadorEnNegociacion = activa.getTrabajador() != null ? activa.getTrabajador().getId() : null;
+            boolean esOtroTrabajador = trabajadorEnNegociacion != null && !trabajadorEnNegociacion.equals(trabajadorId);
+            if (esOtroTrabajador) {
+                throw new IllegalStateException("El servicio ya cuenta con una negociaci��n en curso");
+            }
         }
 
-        var oferta = Oferta.builder()
+        if (ofertaExistente.isPresent() && ofertaExistente.get().getEstado() == EstadoNegociacion.EN_NEGOCIACION) {
+            var contra = new OfertaService.ContraOferta();
+            contra.monto = data.monto;
+            contra.mensaje = data.mensaje;
+            return ofertaService.contraOfertaTrabajador(trabajadorId, ofertaExistente.get().getId(), contra);
+        }
+
+        var oferta = ofertaExistente.orElseGet(() -> Oferta.builder()
                 .servicio(servicio)
                 .trabajador(trabajador)
-                .monto(data.monto)
-                .mensaje(data.mensaje)
-                .build();
-        return ofertaRepo.save(oferta);
-    }
+                .build());
 
-    private CategoriaServicio parseCategoria(String areaServicio) {
-        try {
-            return CategoriaServicio.fromJson(areaServicio);
-        } catch (Exception ex) {
-            throw new IllegalArgumentException("Area de servicio invalida para el trabajador: " + areaServicio);
+        if (oferta.getEstado() == EstadoNegociacion.ACEPTADA) {
+            throw new IllegalStateException("Esta oferta ya se encuentra aceptada");
         }
+
+        oferta.setMonto(data.monto);
+        oferta.setMensaje(data.mensaje);
+        oferta.setEstado(EstadoNegociacion.EN_NEGOCIACION);
+        oferta.setUltimaPropuestaPor(ParticipanteOferta.TRABAJADOR);
+        oferta.setMontoTrabajador(data.monto);
+        oferta.setMontoCliente(null);
+        oferta.setMontoAcordado(null);
+
+        return ofertaRepo.save(oferta);
     }
 
     public static class CrearOferta {
@@ -83,4 +112,3 @@ public class ServicioTrabajadorService {
         public String mensaje;
     }
 }
-

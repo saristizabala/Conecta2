@@ -7,6 +7,8 @@ import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "servicios")
@@ -53,6 +55,11 @@ public class Servicio {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EstadoServicio estado = EstadoServicio.PENDIENTE;
+
+    @Builder.Default
+    @JsonIgnore
+    @OneToMany(mappedBy = "servicio", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Oferta> ofertas = new ArrayList<>();
 
     // ====== Auditoría básica ======
     @Column(nullable = false, updatable = false)

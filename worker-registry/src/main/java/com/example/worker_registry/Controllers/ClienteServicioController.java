@@ -70,8 +70,11 @@ public class ClienteServicioController {
     @DeleteMapping("/{id}")
     public ResponseEntity<?> eliminar(@AuthenticationPrincipal AuthenticatedUser user,
                                       @PathVariable Long id) {
-        service.eliminarServicio(requireClient(user), id);
-        return ResponseEntity.ok(Map.of("mensaje", "Servicio eliminado correctamente"));
+        var resultado = service.eliminarServicio(requireClient(user), id);
+        return ResponseEntity.ok(Map.of(
+                "mensaje", resultado.mensaje(),
+                "exitoso", resultado.exitoso()
+        ));
     }
 
     @GetMapping("/public/available")
@@ -84,7 +87,7 @@ public class ClienteServicioController {
         return ResponseEntity.ok(service.listarPorCliente(clientId));
     }
 
-    @GetMapping("/categories")
+    @GetMapping({"/categories", "/public/categories"})
     public ResponseEntity<List<CategoriaOption>> categorias() {
         var options = Arrays.stream(CategoriaServicio.values())
                 .map(cat -> new CategoriaOption(cat.toJson(), cat.getDisplayName()))

@@ -32,7 +32,7 @@ public class TrabajadorServicioController {
         var oferta = service.crearOferta(trabajadorId, servicioId, body);
         return ResponseEntity.status(201).body(Map.of(
                 "id", oferta.getId(),
-                "mensaje", "Oferta creada correctamente"
+                "mensaje", "Oferta registrada correctamente"
         ));
     }
 

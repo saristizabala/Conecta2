@@ -42,9 +42,37 @@ public class Oferta {
     @Column(nullable = false, updatable = false)
     private LocalDateTime creadoEn;
 
+    @Column(nullable = false)
+    private LocalDateTime actualizadoEn;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private EstadoNegociacion estado = EstadoNegociacion.EN_NEGOCIACION;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ultima_propuesta_por", nullable = false)
+    private ParticipanteOferta ultimaPropuestaPor = ParticipanteOferta.TRABAJADOR;
+
+    @Column(name = "monto_trabajador", precision = 14, scale = 2)
+    private BigDecimal montoTrabajador;
+
+    @Column(name = "monto_cliente", precision = 14, scale = 2)
+    private BigDecimal montoCliente;
+
+    @Column(name = "monto_acordado", precision = 14, scale = 2)
+    private BigDecimal montoAcordado;
+
     @PrePersist
     void onCreate() {
         this.creadoEn = LocalDateTime.now();
+        this.actualizadoEn = this.creadoEn;
+    }
+
+    @PreUpdate
+    void onUpdate() {
+        this.actualizadoEn = LocalDateTime.now();
     }
 
     @com.fasterxml.jackson.annotation.JsonProperty("servicioId")

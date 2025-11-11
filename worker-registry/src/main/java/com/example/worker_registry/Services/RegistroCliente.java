@@ -113,6 +113,11 @@ public class RegistroCliente {
                 .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
     }
 
+    public Cliente obtenerClientePorId(Long id) {
+        return clienteRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cliente no encontrado"));
+    }
+
     /**
      * Mantiene la logica original.
      */

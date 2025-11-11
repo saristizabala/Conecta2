@@ -1,8 +1,9 @@
 package com.example.worker_registry.Services;
 
 import com.example.worker_registry.Entitys.*;
-import com.example.worker_registry.Repository.ServicioRepository;
 import com.example.worker_registry.Repository.ClienteRepository;
+import com.example.worker_registry.Repository.OfertaRepository;
+import com.example.worker_registry.Repository.ServicioRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
@@ -14,11 +15,14 @@ public class ServicioClienteService {
 
     private final ServicioRepository repo;
     private final ClienteRepository clienteRepo;
+    private final OfertaRepository ofertaRepo;
 
     public ServicioClienteService(ServicioRepository repo,
-                                  ClienteRepository clienteRepo) {
+                                  ClienteRepository clienteRepo,
+                                  OfertaRepository ofertaRepo) {
         this.repo = repo;
         this.clienteRepo = clienteRepo;
+        this.ofertaRepo = ofertaRepo;
     }
 
     // ==========================
@@ -107,13 +111,18 @@ public class ServicioClienteService {
     }
 
     @Transactional
-    public void eliminarServicio(Long clienteId, Long servicioId) {
+    public ResultadoOperacion eliminarServicio(Long clienteId, Long servicioId) {
         var s = repo.findByIdAndCliente_Id(servicioId, clienteId)
                 .orElseThrow(() -> new SecurityException("No tienes permiso sobre este servicio"));
         if (s.getEstado() != EstadoServicio.PENDIENTE) {
-            throw new IllegalStateException("Solo los servicios PENDIENTES pueden eliminarse");
+            if (s.getEstado() == EstadoServicio.EN_PROCESO || s.getEstado() == EstadoServicio.ASIGNADO) {
+                return new ResultadoOperacion(false, "No se puede eliminar un servicio que ya fue aceptado");
+            }
+            return new ResultadoOperacion(false, "Solo los servicios PENDIENTES pueden eliminarse");
         }
+        ofertaRepo.deleteByServicio_Id(servicioId);
         repo.delete(s);
+        return new ResultadoOperacion(true, "Servicio eliminado correctamente");
     }
 
     private boolean isBlank(String s) {
@@ -129,4 +138,6 @@ public class ServicioClienteService {
         @com.fasterxml.jackson.annotation.JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
         public LocalDateTime fechaEstimada;
     }
+
+    public static record ResultadoOperacion(boolean exitoso, String mensaje) {}
 }

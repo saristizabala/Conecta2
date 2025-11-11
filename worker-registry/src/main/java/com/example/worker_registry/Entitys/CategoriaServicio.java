@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonValue;
 
 import java.text.Normalizer;
 import java.util.Arrays;
+import java.util.Map;
 
 public enum CategoriaServicio {
     PLOMERIA,
@@ -18,7 +19,36 @@ public enum CategoriaServicio {
     TECNOLOGIA;
 
     @JsonCreator
-    public static CategoriaServicio fromJson(String raw) {
+    public static CategoriaServicio fromJson(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+
+        if (raw instanceof CategoriaServicio categoria) {
+            return categoria;
+        }
+
+        if (raw instanceof String texto) {
+            return parse(texto);
+        }
+
+        if (raw instanceof Map<?, ?> map) {
+            Object value = map.get("value");
+            if (value == null) {
+                value = map.get("label");
+            }
+            if (value == null) {
+                value = map.get("name");
+            }
+            if (value instanceof String texto) {
+                return parse(texto);
+            }
+        }
+
+        throw new IllegalArgumentException("Categoria no valida: " + raw);
+    }
+
+    private static CategoriaServicio parse(String raw) {
         if (raw == null) {
             return null;
         }
@@ -29,6 +59,10 @@ public enum CategoriaServicio {
                 .trim()
                 .toUpperCase()
                 .replace(' ', '_');
+
+        if (normalized.isBlank()) {
+            return null;
+        }
 
         return Arrays.stream(values())
                 .filter(value -> value.name().equals(normalized))

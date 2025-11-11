@@ -11,11 +11,20 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
     List<Oferta> findByTrabajador_Id(Long trabajadorId);
     Optional<Oferta> findByServicio_IdAndTrabajador_Id(Long servicioId, Long trabajadorId);
 
-    // Ofertas dirigidas a un cliente (servicios del cliente) con el servicio aún PENDIENTE
-    java.util.List<Oferta> findByServicio_Cliente_IdAndServicio_Estado(Long clienteId,
-                                                                       com.example.worker_registry.Entitys.EstadoServicio estado);
+    Optional<Oferta> findFirstByServicio_IdAndEstado(Long servicioId,
+                                                     com.example.worker_registry.Entitys.EstadoNegociacion estado);
 
-    // Ofertas realizadas por un trabajador en servicios aún PENDIENTES
-    java.util.List<Oferta> findByTrabajador_IdAndServicio_Estado(Long trabajadorId,
-                                                                 com.example.worker_registry.Entitys.EstadoServicio estado);
+    java.util.List<Oferta> findByServicio_Cliente_IdAndServicio_EstadoAndEstadoAndUltimaPropuestaPorOrderByActualizadoEnDesc(
+            Long clienteId,
+            com.example.worker_registry.Entitys.EstadoServicio estadoServicio,
+            com.example.worker_registry.Entitys.EstadoNegociacion estadoNegociacion,
+            com.example.worker_registry.Entitys.ParticipanteOferta ultimaPropuestaPor);
+
+    java.util.List<Oferta> findByTrabajador_IdAndServicio_EstadoAndEstadoAndUltimaPropuestaPorOrderByActualizadoEnDesc(
+            Long trabajadorId,
+            com.example.worker_registry.Entitys.EstadoServicio estadoServicio,
+            com.example.worker_registry.Entitys.EstadoNegociacion estadoNegociacion,
+            com.example.worker_registry.Entitys.ParticipanteOferta ultimaPropuestaPor);
+
+    void deleteByServicio_Id(Long servicioId);
 }
