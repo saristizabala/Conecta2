@@ -126,7 +126,7 @@ public class RegistroTrabajador {
             existente.setCelular(cambios.getCelular());
         }
 
-        if (cambios.getAreaServicio() != null && !cambios.getAreaServicio().isBlank()) {
+        if (cambios.getAreaServicio() != null) {
             existente.setAreaServicio(cambios.getAreaServicio());
         }
 

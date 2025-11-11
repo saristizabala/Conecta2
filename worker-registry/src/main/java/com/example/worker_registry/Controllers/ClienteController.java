@@ -25,6 +25,16 @@ public class ClienteController {
         }
     }
 
+    @GetMapping("/{id:\\d+}")
+    public ResponseEntity<?> obtenerClientePorId(@PathVariable Long id) {
+        try {
+            Cliente cliente = registroCliente.obtenerClientePorId(id);
+            return ResponseEntity.ok(cliente);
+        } catch (RuntimeException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        }
+    }
+
     @GetMapping("/{correo}")
     public ResponseEntity<?> obtenerCliente(@PathVariable String correo) {
         try {

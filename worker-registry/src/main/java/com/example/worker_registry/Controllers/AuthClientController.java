@@ -49,15 +49,10 @@ public class AuthClientController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody Map<String, String> payload) {
-        String email = payload.containsKey("email")
-                ? payload.get("email")
-                : payload.getOrDefault("correo", "");
-        email = email == null ? "" : email.trim();
-
-        String password = payload.containsKey("password")
-                ? payload.get("password")
-                : payload.getOrDefault("contrasena", "");
-        password = password == null ? "" : password;
+        String email = firstNonBlank(payload,
+                "email", "correo", "correoElectronico", "correo_electronico", "username");
+        String password = firstNonBlank(payload,
+                "password", "contrasena", "clave");
 
         if (email.isEmpty() || password.isEmpty()) {
             return ResponseEntity.status(401).body(Map.of("mensaje", "Credenciales invalidas"));
@@ -81,5 +76,20 @@ public class AuthClientController {
                 "nombreCompleto", cliente.getNombreCompleto(),
                 "role", "CLIENT"
         ));
+    }
+
+    private String firstNonBlank(Map<String, String> payload, String... keys) {
+        for (String key : keys) {
+            if (payload.containsKey(key)) {
+                var value = payload.get(key);
+                if (value != null) {
+                    var trimmed = value.trim();
+                    if (!trimmed.isEmpty()) {
+                        return trimmed;
+                    }
+                }
+            }
+        }
+        return "";
     }
 }

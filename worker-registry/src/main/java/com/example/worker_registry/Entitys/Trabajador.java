@@ -1,8 +1,21 @@
 package com.example.worker_registry.Entitys;
 
 import com.fasterxml.jackson.annotation.JsonProperty;
-import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.GenerationType;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
+import jakarta.persistence.Transient;
+import jakarta.persistence.UniqueConstraint;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 @Entity
 @Table(
@@ -18,71 +31,103 @@ public class Trabajador {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // ✅ Nombre completo no vacío
     @NotBlank(message = "El nombre completo es obligatorio")
     private String nombreCompleto;
 
-    // ✅ Correo único, no vacío, con formato válido
-    @NotBlank(message = "El correo electrónico es obligatorio")
-    @Email(message = "El correo electrónico no tiene un formato válido")
+    @NotBlank(message = "El correo electronico es obligatorio")
+    @Email(message = "El correo electronico no tiene un formato valido")
     @Column(unique = true)
     private String correo;
 
-    // ✅ Contraseña con reglas de seguridad
-    @NotBlank(message = "La contraseña es obligatoria")
-    @Size(min = 8, message = "La contraseña debe tener al menos 8 caracteres")
+    @NotBlank(message = "La contrasena es obligatoria")
+    @Size(min = 8, message = "La contrasena debe tener al menos 8 caracteres")
     @Pattern(
-        // 8+ caracteres, al menos 1 minúscula, 1 mayúscula, 1 número y 1 especial
         regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&]).{8,}$",
-        message = "La contraseña debe incluir mayúsculas, minúsculas, números y un carácter especial"
+        message = "La contrasena debe incluir mayusculas, minusculas, numeros y un caracter especial"
     )
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String contrasena;
 
     /**
-     * ⚠️ Campo solo para lectura desde el request.
-     * - No se persiste (Transient)
-     * - NO tiene anotaciones de validación para no disparar 400 automáticos.
-     *   La verificación de coincidencia se hace en el servicio.
+     * Campo solo para lectura desde el request.
+     * - No se persiste (Transient).
+     * - Se valida manualmente en el servicio para evitar errores automaticos.
      */
     @Transient
     @JsonProperty(value = "confirmarContrasena", access = JsonProperty.Access.WRITE_ONLY)
     private String confirmarContrasena;
 
-    // ✅ Celular único y no vacío
-    @NotBlank(message = "El número de celular es obligatorio")
+    @NotBlank(message = "El numero de celular es obligatorio")
     @Column(unique = true)
     private String celular;
 
-    // ✅ Área de servicio no vacía
-    @NotBlank(message = "El área de servicio es obligatoria")
-    private String areaServicio;
+    @NotNull(message = "El area de servicio es obligatoria")
+    @Enumerated(EnumType.STRING)
+    private CategoriaServicio areaServicio;
 
-    // ✅ Estado de activación (se marca true tras verificar correo)
     private boolean activo = false;
 
-    // ===== Getters y Setters =====
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public String getNombreCompleto() { return nombreCompleto; }
-    public void setNombreCompleto(String nombreCompleto) { this.nombreCompleto = nombreCompleto; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getCorreo() { return correo; }
-    public void setCorreo(String correo) { this.correo = correo; }
+    public String getNombreCompleto() {
+        return nombreCompleto;
+    }
 
-    public String getContrasena() { return contrasena; }
-    public void setContrasena(String contrasena) { this.contrasena = contrasena; }
+    public void setNombreCompleto(String nombreCompleto) {
+        this.nombreCompleto = nombreCompleto;
+    }
 
-    public String getConfirmarContrasena() { return confirmarContrasena; }
-    public void setConfirmarContrasena(String confirmarContrasena) { this.confirmarContrasena = confirmarContrasena; }
+    public String getCorreo() {
+        return correo;
+    }
 
-    public String getCelular() { return celular; }
-    public void setCelular(String celular) { this.celular = celular; }
+    public void setCorreo(String correo) {
+        this.correo = correo;
+    }
 
-    public String getAreaServicio() { return areaServicio; }
-    public void setAreaServicio(String areaServicio) { this.areaServicio = areaServicio; }
+    public String getContrasena() {
+        return contrasena;
+    }
 
-    public boolean isActivo() { return activo; }
-    public void setActivo(boolean activo) { this.activo = activo; }
+    public void setContrasena(String contrasena) {
+        this.contrasena = contrasena;
+    }
+
+    public String getConfirmarContrasena() {
+        return confirmarContrasena;
+    }
+
+    public void setConfirmarContrasena(String confirmarContrasena) {
+        this.confirmarContrasena = confirmarContrasena;
+    }
+
+    public String getCelular() {
+        return celular;
+    }
+
+    public void setCelular(String celular) {
+        this.celular = celular;
+    }
+
+    public CategoriaServicio getAreaServicio() {
+        return areaServicio;
+    }
+
+    public void setAreaServicio(CategoriaServicio areaServicio) {
+        this.areaServicio = areaServicio;
+    }
+
+    public boolean isActivo() {
+        return activo;
+    }
+
+    public void setActivo(boolean activo) {
+        this.activo = activo;
+    }
 }
