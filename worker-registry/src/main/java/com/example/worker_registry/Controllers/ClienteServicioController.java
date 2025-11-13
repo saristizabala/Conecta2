@@ -3,12 +3,14 @@ package com.example.worker_registry.Controllers;
 import com.example.worker_registry.Entitys.CategoriaServicio;
 import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Services.ServicioClienteService;
+import com.example.worker_registry.Services.ServicioTrabajadorService;
 import com.example.worker_registry.securtity.AuthenticatedUser;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -18,9 +20,12 @@ import java.util.Map;
 public class ClienteServicioController {
 
     private final ServicioClienteService service;
+    private final ServicioTrabajadorService trabajadorService;
 
-    public ClienteServicioController(ServicioClienteService service) {
+    public ClienteServicioController(ServicioClienteService service,
+                                     ServicioTrabajadorService trabajadorService) {
         this.service = service;
+        this.trabajadorService = trabajadorService;
     }
 
     @PostMapping
@@ -78,7 +83,16 @@ public class ClienteServicioController {
     }
 
     @GetMapping("/public/available")
-    public ResponseEntity<?> disponibles() {
+    public ResponseEntity<?> disponibles(@AuthenticationPrincipal AuthenticatedUser user) {
+        if (isWorker(user)) {
+            Long workerId = user.userId();
+            List<Servicio> pendientes = trabajadorService.listarDisponiblesPorArea(workerId);
+            List<Servicio> asignados = trabajadorService.listarServiciosAsignados(workerId);
+            var combined = new ArrayList<Servicio>(pendientes.size() + asignados.size());
+            combined.addAll(pendientes);
+            combined.addAll(asignados);
+            return ResponseEntity.ok(combined);
+        }
         return ResponseEntity.ok(service.listarDisponibles());
     }
 
@@ -103,6 +117,10 @@ public class ClienteServicioController {
             throw new org.springframework.security.access.AccessDeniedException("Rol no autorizado");
         }
         return user.userId();
+    }
+
+    private boolean isWorker(AuthenticatedUser user) {
+        return user != null && user.hasRole("WORKER");
     }
 
     private Servicio obtenerDetallePropio(AuthenticatedUser user, Long id) {

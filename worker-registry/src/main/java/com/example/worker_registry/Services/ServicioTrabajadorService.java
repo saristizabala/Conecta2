@@ -43,6 +43,10 @@ public class ServicioTrabajadorService {
         return servicioRepo.findByEstadoAndCategoria(EstadoServicio.PENDIENTE, categoria);
     }
 
+    public List<Servicio> listarServiciosAsignados(Long trabajadorId) {
+        return servicioRepo.findByAssignedWorkerIdAndEstado(trabajadorId, EstadoServicio.ASIGNADO);
+    }
+
     @Transactional
     public Oferta crearOferta(Long trabajadorId, Long servicioId, CrearOferta data) {
         if (data == null || data.monto == null) {

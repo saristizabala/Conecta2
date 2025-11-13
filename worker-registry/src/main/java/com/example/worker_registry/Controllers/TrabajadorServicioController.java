@@ -24,6 +24,12 @@ public class TrabajadorServicioController {
         return ResponseEntity.ok(service.listarDisponiblesPorArea(id));
     }
 
+    @GetMapping("/assigned")
+    public ResponseEntity<?> serviciosAsignados(@AuthenticationPrincipal AuthenticatedUser user) {
+        Long id = requireWorker(user);
+        return ResponseEntity.ok(service.listarServiciosAsignados(id));
+    }
+
     @PostMapping("/{servicioId}/offers")
     public ResponseEntity<?> ofertar(@AuthenticationPrincipal AuthenticatedUser user,
                                      @PathVariable Long servicioId,
