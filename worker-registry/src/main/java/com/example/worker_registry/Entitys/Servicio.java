@@ -56,6 +56,9 @@ public class Servicio {
     @Column(nullable = false)
     private EstadoServicio estado = EstadoServicio.PENDIENTE;
 
+    @Column(name = "trabajador_asignado_id")
+    private Long assignedWorkerId;
+
     @Builder.Default
     @JsonIgnore
     @OneToMany(mappedBy = "servicio", cascade = CascadeType.ALL, orphanRemoval = true)

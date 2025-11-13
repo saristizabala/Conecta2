@@ -1,6 +1,7 @@
 package com.example.worker_registry.Entitys;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
@@ -45,6 +46,7 @@ public class Oferta {
     @Column(nullable = false)
     private LocalDateTime actualizadoEn;
 
+    @JsonIgnore
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -83,6 +85,16 @@ public class Oferta {
     @com.fasterxml.jackson.annotation.JsonProperty("trabajadorId")
     public Long getTrabajadorId() {
         return trabajador != null ? trabajador.getId() : null;
+    }
+
+    @JsonProperty("estadoNegociacion")
+    public EstadoNegociacion getEstadoNegociacion() {
+        return estado;
+    }
+
+    @JsonProperty("serviceId")
+    public Long getServiceId() {
+        return getServicioId();
     }
 }
 
