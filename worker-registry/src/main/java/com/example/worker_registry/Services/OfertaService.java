@@ -53,6 +53,12 @@ public class OfertaService {
     }
 
     @Transactional
+    public ResultadoRespuesta responderOferta(Long clientId, Long ofertaId, ResponderOferta body) {
+        String resolvedAction = resolveAction(body);
+        return responderOferta(clientId, ofertaId, resolvedAction);
+    }
+
+    @Transactional
     public ResultadoRespuesta responderOferta(Long clientId, Long ofertaId, String action) {
         Oferta oferta = ofertaRepository.findById(ofertaId)
                 .orElseThrow(() -> new EntityNotFoundException("Oferta no encontrada"));
@@ -140,6 +146,12 @@ public class OfertaService {
         oferta.setMensaje(data.mensaje);
 
         return ofertaRepository.save(oferta);
+    }
+
+    @Transactional
+    public ResultadoRespuesta responderOfertaTrabajador(Long trabajadorId, Long ofertaId, ResponderOferta body) {
+        String resolvedAction = resolveAction(body);
+        return responderOfertaTrabajador(trabajadorId, ofertaId, resolvedAction);
     }
 
     @Transactional
@@ -291,5 +303,18 @@ public class OfertaService {
         if (action == null) return null;
         var trimmed = action.trim().toUpperCase();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String resolveAction(ResponderOferta body) {
+        if (body == null) {
+            return null;
+        }
+        if (body.action != null && !body.action.isBlank()) {
+            return body.action;
+        }
+        if (body.accept != null) {
+            return body.accept ? "ACCEPT" : "REJECT";
+        }
+        return null;
     }
 }
