@@ -65,5 +65,14 @@ public class Cliente {
     // ✅ Activo solo tras verificar por correo
     @Builder.Default
     private boolean activo = false;
+
+    @Transient
+    @JsonProperty(value = "contrasenaActual", access = JsonProperty.Access.WRITE_ONLY)
+    private String contrasenaActual;
+
+    @JsonProperty(value = "currentPassword", access = JsonProperty.Access.WRITE_ONLY)
+    public void setCurrentPasswordAlias(String currentPassword) {
+        this.contrasenaActual = currentPassword;
+    }
     
 }

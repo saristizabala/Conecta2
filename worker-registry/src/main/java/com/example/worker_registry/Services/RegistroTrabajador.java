@@ -137,6 +137,13 @@ public class RegistroTrabajador {
             if (!cambios.getContrasena().equals(cambios.getConfirmarContrasena())) {
                 throw new IllegalArgumentException("Las contrasenas no coinciden");
             }
+            var contrasenaActual = cambios.getContrasenaActual();
+            if (contrasenaActual == null || contrasenaActual.isBlank()) {
+                throw new IllegalArgumentException("Debe ingresar la contrasena actual para modificarla");
+            }
+            if (!encoder.matches(contrasenaActual, existente.getContrasena())) {
+                throw new IllegalArgumentException("La contrasena actual no es valida");
+            }
             existente.setContrasena(encoder.encode(cambios.getContrasena()));
         }
 

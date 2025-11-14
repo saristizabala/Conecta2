@@ -13,6 +13,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -33,6 +35,7 @@ public class ServicioTrabajadorService {
         this.ofertaService = ofertaService;
     }
 
+    @Transactional
     public List<Servicio> listarDisponiblesPorArea(Long trabajadorId) {
         var trabajador = trabajadorRepo.findById(trabajadorId)
                 .orElseThrow(() -> new EntityNotFoundException("Trabajador no encontrado"));
@@ -40,7 +43,8 @@ public class ServicioTrabajadorService {
         if (categoria == null) {
             throw new IllegalStateException("El trabajador no tiene un area de servicio valida");
         }
-        return servicioRepo.findByEstadoAndCategoria(EstadoServicio.PENDIENTE, categoria);
+        var servicios = servicioRepo.findByEstadoAndCategoria(EstadoServicio.PENDIENTE, categoria);
+        return filtrarServiciosVigentes(servicios);
     }
 
     @Transactional
@@ -60,6 +64,11 @@ public class ServicioTrabajadorService {
         if (servicio.getEstado() != EstadoServicio.PENDIENTE) {
             throw new IllegalStateException("Solo se puede ofertar en servicios PENDIENTES");
         }
+        if (estaVencido(servicio, LocalDate.now())) {
+            servicio.setEstado(EstadoServicio.CANCELADO);
+            servicioRepo.save(servicio);
+            throw new IllegalStateException("El servicio ya expiro");
+        }
 
         var categoriaTrabajador = trabajador.getAreaServicio();
         if (categoriaTrabajador == null) {
@@ -76,7 +85,7 @@ public class ServicioTrabajadorService {
             Long trabajadorEnNegociacion = activa.getTrabajador() != null ? activa.getTrabajador().getId() : null;
             boolean esOtroTrabajador = trabajadorEnNegociacion != null && !trabajadorEnNegociacion.equals(trabajadorId);
             if (esOtroTrabajador) {
-                throw new IllegalStateException("El servicio ya cuenta con una negociaci��n en curso");
+                throw new IllegalStateException("El servicio ya cuenta con una negociacion en curso");
             }
         }
 
@@ -105,6 +114,29 @@ public class ServicioTrabajadorService {
         oferta.setMontoAcordado(null);
 
         return ofertaRepo.save(oferta);
+    }
+
+    private List<Servicio> filtrarServiciosVigentes(List<Servicio> servicios) {
+        LocalDate hoy = LocalDate.now();
+        List<Servicio> vigentes = new ArrayList<>();
+        List<Servicio> expirados = new ArrayList<>();
+        for (Servicio servicio : servicios) {
+            if (servicio.getEstado() == EstadoServicio.PENDIENTE && estaVencido(servicio, hoy)) {
+                servicio.setEstado(EstadoServicio.CANCELADO);
+                expirados.add(servicio);
+            } else {
+                vigentes.add(servicio);
+            }
+        }
+        if (!expirados.isEmpty()) {
+            servicioRepo.saveAll(expirados);
+        }
+        return vigentes;
+    }
+
+    private boolean estaVencido(Servicio servicio, LocalDate hoy) {
+        return servicio.getFechaEstimada() != null
+                && servicio.getFechaEstimada().toLocalDate().isBefore(hoy);
     }
 
     public static class CrearOferta {

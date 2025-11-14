@@ -12,6 +12,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -27,21 +29,23 @@ public class OfertaService {
     }
 
     public List<Oferta> listarPendientesCliente(Long clienteId) {
-        return ofertaRepository.findByServicio_Cliente_IdAndServicio_EstadoAndEstadoAndUltimaPropuestaPorOrderByActualizadoEnDesc(
+        var ofertas = ofertaRepository.findByServicio_Cliente_IdAndServicio_EstadoAndEstadoAndUltimaPropuestaPorOrderByActualizadoEnDesc(
                 clienteId,
                 EstadoServicio.PENDIENTE,
                 EstadoNegociacion.EN_NEGOCIACION,
                 ParticipanteOferta.TRABAJADOR
         );
+        return filtrarOfertasConServicioVigente(ofertas);
     }
 
     public List<Oferta> listarPendientesTrabajador(Long trabajadorId) {
-        return ofertaRepository.findByTrabajador_IdAndServicio_EstadoAndEstadoAndUltimaPropuestaPorOrderByActualizadoEnDesc(
+        var ofertas = ofertaRepository.findByTrabajador_IdAndServicio_EstadoAndEstadoAndUltimaPropuestaPorOrderByActualizadoEnDesc(
                 trabajadorId,
                 EstadoServicio.PENDIENTE,
                 EstadoNegociacion.EN_NEGOCIACION,
                 ParticipanteOferta.CLIENTE
         );
+        return filtrarOfertasConServicioVigente(ofertas);
     }
 
     @Transactional
@@ -87,7 +91,7 @@ public class OfertaService {
         validarServicioPendiente(servicio);
 
         if (oferta.getEstado() != EstadoNegociacion.EN_NEGOCIACION) {
-            throw new IllegalStateException("Esta negociación ya fue cerrada");
+            throw new IllegalStateException("Esta negociacion ya fue cerrada");
         }
         if (oferta.getUltimaPropuestaPor() != ParticipanteOferta.TRABAJADOR) {
             throw new IllegalStateException("Ya enviaste una contraoferta, espera la respuesta del trabajador");
@@ -118,7 +122,7 @@ public class OfertaService {
         validarServicioPendiente(servicio);
 
         if (oferta.getEstado() != EstadoNegociacion.EN_NEGOCIACION) {
-            throw new IllegalStateException("Esta negociaci��n ya fue cerrada");
+            throw new IllegalStateException("Esta negociacion ya fue cerrada");
         }
         if (oferta.getUltimaPropuestaPor() != ParticipanteOferta.CLIENTE) {
             throw new IllegalStateException("Ya enviaste una contraoferta, espera la respuesta del cliente");
@@ -143,7 +147,7 @@ public class OfertaService {
         validarServicioPendiente(servicio);
 
         if (oferta.getEstado() != EstadoNegociacion.EN_NEGOCIACION) {
-            throw new IllegalStateException("Esta negociación ya fue cerrada");
+            throw new IllegalStateException("Esta negociacion ya fue cerrada");
         }
         if (oferta.getUltimaPropuestaPor() != ParticipanteOferta.CLIENTE) {
             throw new IllegalStateException("No hay una contraoferta del cliente por responder");
@@ -176,6 +180,9 @@ public class OfertaService {
         if (servicio == null || servicio.getEstado() != EstadoServicio.PENDIENTE) {
             throw new IllegalStateException("Solo puedes negociar sobre servicios PENDIENTES");
         }
+        if (marcarServicioComoVencido(servicio)) {
+            throw new IllegalStateException("El servicio ya expiro");
+        }
     }
 
     private ResultadoRespuesta aceptarOferta(Oferta oferta, String mensaje) {
@@ -188,6 +195,43 @@ public class OfertaService {
         servicioRepository.saveAndFlush(servicio);
 
         return new ResultadoRespuesta(mensaje, true);
+    }
+
+    private List<Oferta> filtrarOfertasConServicioVigente(List<Oferta> ofertas) {
+        LocalDate hoy = LocalDate.now();
+        List<Oferta> vigentes = new ArrayList<>();
+        List<Servicio> expirados = new ArrayList<>();
+        for (Oferta oferta : ofertas) {
+            Servicio servicio = oferta.getServicio();
+            if (servicio == null) {
+                continue;
+            }
+            if (servicio.getEstado() != EstadoServicio.PENDIENTE) {
+                continue;
+            }
+            if (servicio.getFechaEstimada() != null && servicio.getFechaEstimada().toLocalDate().isBefore(hoy)) {
+                servicio.setEstado(EstadoServicio.CANCELADO);
+                expirados.add(servicio);
+                continue;
+            }
+            vigentes.add(oferta);
+        }
+        if (!expirados.isEmpty()) {
+            servicioRepository.saveAll(expirados);
+        }
+        return vigentes;
+    }
+
+    private boolean marcarServicioComoVencido(Servicio servicio) {
+        if (servicio.getFechaEstimada() == null) {
+            return false;
+        }
+        if (servicio.getFechaEstimada().toLocalDate().isBefore(LocalDate.now())) {
+            servicio.setEstado(EstadoServicio.CANCELADO);
+            servicioRepository.save(servicio);
+            return true;
+        }
+        return false;
     }
 
     public static class ResponderOferta {

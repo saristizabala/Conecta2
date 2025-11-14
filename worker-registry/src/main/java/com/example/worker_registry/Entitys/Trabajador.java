@@ -61,6 +61,15 @@ public class Trabajador {
     @Column(unique = true)
     private String celular;
 
+    @Transient
+    @JsonProperty(value = "contrasenaActual", access = JsonProperty.Access.WRITE_ONLY)
+    private String contrasenaActual;
+
+    @JsonProperty(value = "currentPassword", access = JsonProperty.Access.WRITE_ONLY)
+    public void setCurrentPasswordAlias(String currentPassword) {
+        this.contrasenaActual = currentPassword;
+    }
+
     @NotNull(message = "El area de servicio es obligatoria")
     @Enumerated(EnumType.STRING)
     private CategoriaServicio areaServicio;
@@ -113,6 +122,14 @@ public class Trabajador {
 
     public void setCelular(String celular) {
         this.celular = celular;
+    }
+
+    public String getContrasenaActual() {
+        return contrasenaActual;
+    }
+
+    public void setContrasenaActual(String contrasenaActual) {
+        this.contrasenaActual = contrasenaActual;
     }
 
     public CategoriaServicio getAreaServicio() {
