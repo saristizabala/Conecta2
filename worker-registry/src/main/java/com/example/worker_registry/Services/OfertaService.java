@@ -7,6 +7,7 @@ import com.example.worker_registry.Entitys.ParticipanteOferta;
 import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Repository.OfertaRepository;
 import com.example.worker_registry.Repository.ServicioRepository;
+import com.example.worker_registry.Services.PushNotificationService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,11 +22,14 @@ public class OfertaService {
 
     private final OfertaRepository ofertaRepository;
     private final ServicioRepository servicioRepository;
+    private final PushNotificationService pushNotificationService;
 
     public OfertaService(OfertaRepository ofertaRepository,
-                         ServicioRepository servicioRepository) {
+                         ServicioRepository servicioRepository,
+                         PushNotificationService pushNotificationService) {
         this.ofertaRepository = ofertaRepository;
         this.servicioRepository = servicioRepository;
+        this.pushNotificationService = pushNotificationService;
     }
 
     public List<Oferta> listarPendientesCliente(Long clienteId) {
@@ -49,7 +53,7 @@ public class OfertaService {
     }
 
     @Transactional
-    public ResultadoRespuesta responderOferta(Long clientId, Long ofertaId, ResponderOferta data) {
+    public ResultadoRespuesta responderOferta(Long clientId, Long ofertaId, String action) {
         Oferta oferta = ofertaRepository.findById(ofertaId)
                 .orElseThrow(() -> new EntityNotFoundException("Oferta no encontrada"));
 
@@ -64,14 +68,16 @@ public class OfertaService {
             throw new IllegalStateException("Solo puedes aceptar o rechazar ofertas activas del trabajador");
         }
 
-        boolean aceptar = data != null && Boolean.TRUE.equals(data.accept);
-        if (aceptar) {
+        String normalizedAction = normalizeAction(action);
+        if ("ACCEPT".equals(normalizedAction)) {
             return aceptarOferta(oferta, "Oferta aceptada");
-        } else {
+        }
+        if (normalizedAction == null || "REJECT".equals(normalizedAction)) {
             oferta.setEstado(EstadoNegociacion.RECHAZADA);
             ofertaRepository.save(oferta);
-            return new ResultadoRespuesta("Oferta rechazada", false);
+            return new ResultadoRespuesta("Oferta rechazada", false, null);
         }
+        throw new IllegalArgumentException("Acción no soportada: " + action);
     }
 
     @Transactional
@@ -137,7 +143,7 @@ public class OfertaService {
     }
 
     @Transactional
-    public ResultadoRespuesta responderOfertaTrabajador(Long trabajadorId, Long ofertaId, ResponderOferta data) {
+    public ResultadoRespuesta responderOfertaTrabajador(Long trabajadorId, Long ofertaId, String action) {
         Oferta oferta = ofertaRepository.findById(ofertaId)
                 .orElseThrow(() -> new EntityNotFoundException("Oferta no encontrada"));
 
@@ -153,14 +159,14 @@ public class OfertaService {
             throw new IllegalStateException("No hay una contraoferta del cliente por responder");
         }
 
-        boolean aceptar = data != null && Boolean.TRUE.equals(data.accept);
-        if (aceptar) {
+        String normalizedAction = normalizeAction(action);
+        if ("ACCEPT".equals(normalizedAction)) {
             return aceptarOferta(oferta, "Contraoferta aceptada");
-        } else {
-            oferta.setEstado(EstadoNegociacion.RECHAZADA);
-            ofertaRepository.save(oferta);
-            return new ResultadoRespuesta("Contraoferta rechazada", false);
         }
+
+        oferta.setEstado(EstadoNegociacion.RECHAZADA);
+        ofertaRepository.save(oferta);
+        return new ResultadoRespuesta("Contraoferta rechazada", false, null);
     }
 
     private void validarClientePropietario(Long clientId, Servicio servicio) {
@@ -191,10 +197,45 @@ public class OfertaService {
         ofertaRepository.save(oferta);
 
         Servicio servicio = oferta.getServicio();
-        servicio.setEstado(EstadoServicio.EN_PROCESO);
-        servicioRepository.saveAndFlush(servicio);
+        servicio.setEstado(EstadoServicio.ASIGNADO);
+        if (oferta.getTrabajador() != null && oferta.getTrabajador().getId() != null) {
+            servicio.setAssignedWorkerId(oferta.getTrabajador().getId());
+        }
+        servicio = servicioRepository.save(servicio);
+        notificarClienteAsignacion(servicio);
 
-        return new ResultadoRespuesta(mensaje, true);
+        cerrarOtrasOfertas(servicio, oferta.getId());
+
+        return new ResultadoRespuesta(mensaje, true, servicio);
+    }
+
+    private void notificarClienteAsignacion(Servicio servicio) {
+        if (servicio == null || servicio.getCliente() == null) {
+            return;
+        }
+        Long clienteId = servicio.getCliente().getId();
+        if (clienteId == null) {
+            return;
+        }
+        String titulo = "Servicio asignado";
+        String cuerpo = String.format(
+                "El servicio %s (id=%d) ha sido asignado a un trabajador.",
+                servicio.getTitulo(), servicio.getId()
+        );
+        pushNotificationService.notifyCliente(clienteId, titulo, cuerpo);
+    }
+
+    private void cerrarOtrasOfertas(Servicio servicio, Long aceptadaOfertaId) {
+        var otras = ofertaRepository.findByServicio_Id(servicio.getId());
+        var pendientes = otras.stream()
+                .filter(o -> o.getId() != null
+                        && !o.getId().equals(aceptadaOfertaId)
+                        && o.getEstado() == EstadoNegociacion.EN_NEGOCIACION)
+                .toList();
+        if (!pendientes.isEmpty()) {
+            pendientes.forEach(o -> o.setEstado(EstadoNegociacion.RECHAZADA));
+            ofertaRepository.saveAll(pendientes);
+        }
     }
 
     private List<Oferta> filtrarOfertasConServicioVigente(List<Oferta> ofertas) {
@@ -235,6 +276,7 @@ public class OfertaService {
     }
 
     public static class ResponderOferta {
+        public String action; // EXPECTED: ACCEPT or REJECT
         public Boolean accept; // true = aceptar, false/null = rechazar
     }
 
@@ -243,5 +285,11 @@ public class OfertaService {
         public String mensaje;
     }
 
-    public record ResultadoRespuesta(String mensaje, boolean accepted) {}
+    public record ResultadoRespuesta(String mensaje, boolean accepted, Servicio servicio) {}
+
+    private String normalizeAction(String action) {
+        if (action == null) return null;
+        var trimmed = action.trim().toUpperCase();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
 }
