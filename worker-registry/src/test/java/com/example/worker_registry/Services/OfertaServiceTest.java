@@ -14,11 +14,10 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
 class OfertaServiceTest {
@@ -41,6 +40,7 @@ class OfertaServiceTest {
                 .id(10L)
                 .cliente(cliente)
                 .estado(EstadoServicio.PENDIENTE)
+                .fechaEstimada(LocalDateTime.now().plusDays(2))
                 .build();
         var trabajador = new Trabajador();
         trabajador.setId(99L);
@@ -76,6 +76,7 @@ class OfertaServiceTest {
                 .id(11L)
                 .cliente(Cliente.builder().id(2L).build())
                 .estado(EstadoServicio.PENDIENTE)
+                .fechaEstimada(LocalDateTime.now().plusDays(1))
                 .build();
         var trabajador = new Trabajador();
         trabajador.setId(7L);
@@ -105,6 +106,7 @@ class OfertaServiceTest {
                 .id(20L)
                 .cliente(cliente)
                 .estado(EstadoServicio.PENDIENTE)
+                .fechaEstimada(LocalDateTime.now().plusDays(1))
                 .build();
         var trabajador = new Trabajador();
         trabajador.setId(4L);
@@ -133,5 +135,39 @@ class OfertaServiceTest {
         assertEquals(oferta.getMonto(), oferta.getMontoAcordado());
 
         verify(servicioRepository).saveAndFlush(servicio);
+    }
+
+    @Test
+    void responderOfertaLanzaErrorCuandoServicioExpirado() {
+        var cliente = Cliente.builder().id(40L).build();
+        var servicio = Servicio.builder()
+                .id(30L)
+                .cliente(cliente)
+                .estado(EstadoServicio.PENDIENTE)
+                .fechaEstimada(LocalDateTime.now().minusDays(1))
+                .build();
+        var trabajador = new Trabajador();
+        trabajador.setId(12L);
+
+        var oferta = Oferta.builder()
+                .id(15L)
+                .servicio(servicio)
+                .trabajador(trabajador)
+                .estado(EstadoNegociacion.EN_NEGOCIACION)
+                .ultimaPropuestaPor(ParticipanteOferta.TRABAJADOR)
+                .monto(BigDecimal.valueOf(50))
+                .build();
+
+        when(ofertaRepository.findById(15L)).thenReturn(Optional.of(oferta));
+
+        var body = new OfertaService.ResponderOferta();
+        body.accept = true;
+
+        assertThrows(IllegalStateException.class,
+                () -> ofertaService.responderOferta(cliente.getId(), 15L, body));
+
+        assertEquals(EstadoServicio.CANCELADO, servicio.getEstado());
+        verify(servicioRepository).save(servicio);
+        verify(ofertaRepository, never()).save(oferta);
     }
 }

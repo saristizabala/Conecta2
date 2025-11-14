@@ -202,6 +202,13 @@ public class RegistroCliente {
             if (!cambios.getContrasena().equals(cambios.getConfirmarContrasena())) {
                 throw new IllegalArgumentException("Las contrasenas no coinciden");
             }
+            String contrasenaActual = cambios.getContrasenaActual();
+            if (isBlank(contrasenaActual)) {
+                throw new IllegalArgumentException("Debe ingresar su contrasena actual para modificarla");
+            }
+            if (!encoder.matches(contrasenaActual, existente.getContrasena())) {
+                throw new IllegalArgumentException("La contrasena actual no es valida");
+            }
             existente.setContrasena(encoder.encode(cambios.getContrasena()));
         }
 
