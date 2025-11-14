@@ -27,4 +27,6 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
             com.example.worker_registry.Entitys.ParticipanteOferta ultimaPropuestaPor);
 
     void deleteByServicio_Id(Long servicioId);
+
+    boolean existsByServicio_Id(Long servicioId);
 }

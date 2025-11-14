@@ -9,6 +9,7 @@ import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Entitys.Trabajador;
 import com.example.worker_registry.Repository.OfertaRepository;
 import com.example.worker_registry.Repository.ServicioRepository;
+import com.example.worker_registry.Services.PushNotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -18,19 +19,23 @@ import java.time.LocalDateTime;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 class OfertaServiceTest {
 
     private OfertaRepository ofertaRepository;
     private ServicioRepository servicioRepository;
+    private PushNotificationService pushNotificationService;
     private OfertaService ofertaService;
 
     @BeforeEach
     void setUp() {
         ofertaRepository = Mockito.mock(OfertaRepository.class);
         servicioRepository = Mockito.mock(ServicioRepository.class);
-        ofertaService = new OfertaService(ofertaRepository, servicioRepository);
+        pushNotificationService = Mockito.mock(PushNotificationService.class);
+        ofertaService = new OfertaService(ofertaRepository, servicioRepository, pushNotificationService);
     }
 
     @Test
@@ -122,19 +127,17 @@ class OfertaServiceTest {
 
         when(ofertaRepository.findById(8L)).thenReturn(Optional.of(oferta));
         when(ofertaRepository.save(any(Oferta.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(servicioRepository.saveAndFlush(any(Servicio.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(servicioRepository.save(any(Servicio.class))).thenAnswer(inv -> inv.getArgument(0));
 
-        var body = new OfertaService.ResponderOferta();
-        body.accept = true;
-
-        var resultado = ofertaService.responderOferta(3L, 8L, body);
+        var resultado = ofertaService.responderOferta(3L, 8L, "ACCEPT");
 
         assertTrue(resultado.accepted());
         assertEquals("Oferta aceptada", resultado.mensaje());
         assertEquals(EstadoNegociacion.ACEPTADA, oferta.getEstado());
         assertEquals(oferta.getMonto(), oferta.getMontoAcordado());
 
-        verify(servicioRepository).saveAndFlush(servicio);
+        verify(servicioRepository).save(servicio);
+        verify(pushNotificationService).notifyCliente(eq(3L), eq("Servicio asignado"), contains("id=20"));
     }
 
     @Test

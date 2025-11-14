@@ -6,6 +6,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestController
@@ -38,15 +39,8 @@ public class OfertaController {
                                        @RequestBody(required = false) OfertaService.ResponderOferta body,
                                        @RequestParam(name = "accept", required = false) Boolean acceptParam) {
         Long clientId = requireClientRole(user);
-        if (body == null && acceptParam != null) {
-            body = new OfertaService.ResponderOferta();
-            body.accept = acceptParam;
-        }
-        var result = ofertaService.responderOferta(clientId, id, body);
-        return ResponseEntity.ok(Map.of(
-                "mensaje", result.mensaje(),
-                "accepted", result.accepted()
-        ));
+        var result = ofertaService.responderOferta(clientId, id, resolveAction(body, acceptParam));
+        return ResponseEntity.ok(buildResponse(result));
     }
 
     @PostMapping("/offers/{id}/counter")
@@ -81,15 +75,9 @@ public class OfertaController {
                                                  @RequestBody(required = false) OfertaService.ResponderOferta body,
                                                  @RequestParam(name = "accept", required = false) Boolean acceptParam) {
         Long workerId = requireWorkerRole(user);
-        if (body == null && acceptParam != null) {
-            body = new OfertaService.ResponderOferta();
-            body.accept = acceptParam;
-        }
-        var result = ofertaService.responderOfertaTrabajador(workerId, id, body);
-        return ResponseEntity.ok(Map.of(
-                "mensaje", result.mensaje(),
-                "accepted", result.accepted()
-        ));
+        var action = resolveAction(body, acceptParam);
+        var result = ofertaService.responderOfertaTrabajador(workerId, id, action);
+        return ResponseEntity.ok(buildResponse(result));
     }
 
     private Long requireClient(AuthenticatedUser user, Long expectedId) {
@@ -130,5 +118,30 @@ public class OfertaController {
             throw new org.springframework.security.access.AccessDeniedException("Rol no autorizado");
         }
         return user.userId();
+    }
+
+    private Map<String, Object> buildResponse(OfertaService.ResultadoRespuesta result) {
+        var payload = new LinkedHashMap<String, Object>();
+        payload.put("mensaje", result.mensaje());
+        payload.put("accepted", result.accepted());
+        if (result.servicio() != null) {
+            payload.put("servicio", result.servicio());
+        }
+        return payload;
+    }
+
+    private String resolveAction(OfertaService.ResponderOferta body, Boolean acceptParam) {
+        if (body != null) {
+            if (body.action != null && !body.action.isBlank()) {
+                return body.action;
+            }
+            if (body.accept != null) {
+                return body.accept ? "ACCEPT" : "REJECT";
+            }
+        }
+        if (acceptParam != null) {
+            return acceptParam ? "ACCEPT" : "REJECT";
+        }
+        return null;
     }
 }
