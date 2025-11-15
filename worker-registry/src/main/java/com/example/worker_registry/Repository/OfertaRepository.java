@@ -14,6 +14,8 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
     Optional<Oferta> findFirstByServicio_IdAndEstado(Long servicioId,
                                                      com.example.worker_registry.Entitys.EstadoNegociacion estado);
 
+    Optional<Oferta> findByPaymentIntentId(String paymentIntentId);
+
     java.util.List<Oferta> findByServicio_Cliente_IdAndServicio_EstadoAndEstadoAndUltimaPropuestaPorOrderByActualizadoEnDesc(
             Long clienteId,
             com.example.worker_registry.Entitys.EstadoServicio estadoServicio,
