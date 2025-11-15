@@ -24,6 +24,7 @@ public class SecurityConfig {
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/clients/services/public/**").permitAll()
+                .requestMatchers("/api/v1/payments/webhook").permitAll()
                 .requestMatchers("/api/v1/clients/services/**").hasRole("CLIENT")
                 .requestMatchers("/api/v1/workers/services/**").hasRole("WORKER")
                 .requestMatchers("/api/v1/clients/*/offers/pending").hasRole("CLIENT")
