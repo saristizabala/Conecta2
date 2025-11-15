@@ -3,6 +3,7 @@ package com.example.worker_registry.Exceptions;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -102,6 +103,11 @@ public class GlobalExceptionHandler {
     public ResponseEntity<Map<String, Object>> handleConflict(DataIntegrityViolationException ex) {
         return build(HttpStatus.CONFLICT, "Conflicto de datos (posible duplicado/relación inválida)", 
                 List.of(Optional.ofNullable(ex.getMostSpecificCause()).map(Throwable::getMessage).orElse(ex.getMessage())));
+    }
+
+    @ExceptionHandler(AccessDeniedException.class)
+    public ResponseEntity<Map<String, Object>> handleAccessDenied(AccessDeniedException ex) {
+        return build(HttpStatus.FORBIDDEN, ex.getMessage() != null ? ex.getMessage() : "Acceso denegado", null);
     }
 
     // Genérico 500

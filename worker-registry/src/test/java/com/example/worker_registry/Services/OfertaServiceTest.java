@@ -9,7 +9,6 @@ import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Entitys.Trabajador;
 import com.example.worker_registry.Repository.OfertaRepository;
 import com.example.worker_registry.Repository.ServicioRepository;
-import com.example.worker_registry.Services.PushNotificationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
@@ -28,6 +27,7 @@ class OfertaServiceTest {
     private OfertaRepository ofertaRepository;
     private ServicioRepository servicioRepository;
     private PushNotificationService pushNotificationService;
+    private PaymentIntegrationService paymentIntegrationService;
     private OfertaService ofertaService;
 
     @BeforeEach
@@ -35,7 +35,8 @@ class OfertaServiceTest {
         ofertaRepository = Mockito.mock(OfertaRepository.class);
         servicioRepository = Mockito.mock(ServicioRepository.class);
         pushNotificationService = Mockito.mock(PushNotificationService.class);
-        ofertaService = new OfertaService(ofertaRepository, servicioRepository, pushNotificationService);
+        paymentIntegrationService = Mockito.mock(PaymentIntegrationService.class);
+        ofertaService = new OfertaService(ofertaRepository, servicioRepository, pushNotificationService, paymentIntegrationService);
     }
 
     @Test
@@ -110,6 +111,7 @@ class OfertaServiceTest {
         var servicio = Servicio.builder()
                 .id(20L)
                 .cliente(cliente)
+                .titulo("Servicio Demo")
                 .estado(EstadoServicio.PENDIENTE)
                 .fechaEstimada(LocalDateTime.now().plusDays(1))
                 .build();
@@ -127,17 +129,20 @@ class OfertaServiceTest {
 
         when(ofertaRepository.findById(8L)).thenReturn(Optional.of(oferta));
         when(ofertaRepository.save(any(Oferta.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(servicioRepository.save(any(Servicio.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(paymentIntegrationService.iniciarPago(oferta)).thenAnswer(inv -> {
+            servicio.setEstado(EstadoServicio.PENDIENTE_PAGO);
+            oferta.setEstado(EstadoNegociacion.ACEPTADA);
+            return oferta;
+        });
 
         var resultado = ofertaService.responderOferta(3L, 8L, "ACCEPT");
 
         assertTrue(resultado.accepted());
-        assertEquals("Oferta aceptada", resultado.mensaje());
+        assertEquals("Pago pendiente de confirmacion", resultado.mensaje());
         assertEquals(EstadoNegociacion.ACEPTADA, oferta.getEstado());
-        assertEquals(oferta.getMonto(), oferta.getMontoAcordado());
 
-        verify(servicioRepository).save(servicio);
-        verify(pushNotificationService).notifyCliente(eq(3L), eq("Servicio asignado"), contains("id=20"));
+        verify(paymentIntegrationService).iniciarPago(oferta);
+        verify(pushNotificationService).notifyCliente(eq(3L), eq("Pago pendiente"), contains("Servicio"));
     }
 
     @Test

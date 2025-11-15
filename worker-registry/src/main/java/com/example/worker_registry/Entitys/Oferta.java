@@ -2,12 +2,14 @@ package com.example.worker_registry.Entitys;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.example.worker_registry.Entitys.PaymentStatus;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 
 @Entity
 @Table(name = "ofertas",
@@ -66,6 +68,23 @@ public class Oferta {
     @Column(name = "monto_acordado", precision = 14, scale = 2)
     private BigDecimal montoAcordado;
 
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "payment_intent_id", length = 128)
+    private String paymentIntentId;
+
+    @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+    @Column(name = "payment_client_secret", length = 256)
+    private String paymentClientSecret;
+
+    @Builder.Default
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", length = 32)
+    private PaymentStatus paymentStatus = PaymentStatus.NOT_REQUIRED;
+
+    @JsonIgnore
+    @Column(name = "payment_metadata", columnDefinition = "TEXT")
+    private String paymentMetadata;
+
     @PrePersist
     void onCreate() {
         this.creadoEn = LocalDateTime.now();
@@ -92,9 +111,24 @@ public class Oferta {
         return estado;
     }
 
+    @JsonProperty("paymentStatus")
+    public PaymentStatus getJsonPaymentStatus() {
+        return paymentStatus;
+    }
+
     @JsonProperty("serviceId")
     public Long getServiceId() {
         return getServicioId();
     }
-}
 
+    public Map<String, Object> getPaymentMetadataAsMap() {
+        if (paymentMetadata == null || paymentMetadata.isBlank()) {
+            return java.util.Collections.emptyMap();
+        }
+        try {
+            return new com.fasterxml.jackson.databind.ObjectMapper().readValue(paymentMetadata, Map.class);
+        } catch (Exception ex) {
+            return java.util.Collections.emptyMap();
+        }
+    }
+}

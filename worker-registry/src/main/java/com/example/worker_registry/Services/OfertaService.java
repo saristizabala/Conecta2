@@ -23,13 +23,16 @@ public class OfertaService {
     private final OfertaRepository ofertaRepository;
     private final ServicioRepository servicioRepository;
     private final PushNotificationService pushNotificationService;
+    private final PaymentIntegrationService paymentIntegrationService;
 
     public OfertaService(OfertaRepository ofertaRepository,
                          ServicioRepository servicioRepository,
-                         PushNotificationService pushNotificationService) {
+                         PushNotificationService pushNotificationService,
+                         PaymentIntegrationService paymentIntegrationService) {
         this.ofertaRepository = ofertaRepository;
         this.servicioRepository = servicioRepository;
         this.pushNotificationService = pushNotificationService;
+        this.paymentIntegrationService = paymentIntegrationService;
     }
 
     public List<Oferta> listarPendientesCliente(Long clienteId) {
@@ -204,50 +207,19 @@ public class OfertaService {
     }
 
     private ResultadoRespuesta aceptarOferta(Oferta oferta, String mensaje) {
-        oferta.setEstado(EstadoNegociacion.ACEPTADA);
-        oferta.setMontoAcordado(oferta.getMonto());
-        ofertaRepository.save(oferta);
-
+        paymentIntegrationService.iniciarPago(oferta);
         Servicio servicio = oferta.getServicio();
-        servicio.setEstado(EstadoServicio.ASIGNADO);
-        if (oferta.getTrabajador() != null && oferta.getTrabajador().getId() != null) {
-            servicio.setAssignedWorkerId(oferta.getTrabajador().getId());
-        }
-        servicio = servicioRepository.save(servicio);
-        notificarClienteAsignacion(servicio);
-
-        cerrarOtrasOfertas(servicio, oferta.getId());
-
-        return new ResultadoRespuesta(mensaje, true, servicio);
+        notificarClientePagoPendiente(servicio);
+        return new ResultadoRespuesta("Pago pendiente de confirmacion", true, servicio);
     }
 
-    private void notificarClienteAsignacion(Servicio servicio) {
+    private void notificarClientePagoPendiente(Servicio servicio) {
         if (servicio == null || servicio.getCliente() == null) {
             return;
         }
-        Long clienteId = servicio.getCliente().getId();
-        if (clienteId == null) {
-            return;
-        }
-        String titulo = "Servicio asignado";
-        String cuerpo = String.format(
-                "El servicio %s (id=%d) ha sido asignado a un trabajador.",
-                servicio.getTitulo(), servicio.getId()
-        );
-        pushNotificationService.notifyCliente(clienteId, titulo, cuerpo);
-    }
-
-    private void cerrarOtrasOfertas(Servicio servicio, Long aceptadaOfertaId) {
-        var otras = ofertaRepository.findByServicio_Id(servicio.getId());
-        var pendientes = otras.stream()
-                .filter(o -> o.getId() != null
-                        && !o.getId().equals(aceptadaOfertaId)
-                        && o.getEstado() == EstadoNegociacion.EN_NEGOCIACION)
-                .toList();
-        if (!pendientes.isEmpty()) {
-            pendientes.forEach(o -> o.setEstado(EstadoNegociacion.RECHAZADA));
-            ofertaRepository.saveAll(pendientes);
-        }
+        pushNotificationService.notifyCliente(servicio.getCliente().getId(),
+                "Pago pendiente",
+                "Tu servicio " + servicio.getTitulo() + " esta a la espera de pago.");
     }
 
     private List<Oferta> filtrarOfertasConServicioVigente(List<Oferta> ofertas) {
