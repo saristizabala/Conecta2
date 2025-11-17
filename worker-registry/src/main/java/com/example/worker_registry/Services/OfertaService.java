@@ -8,6 +8,7 @@ import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Repository.OfertaRepository;
 import com.example.worker_registry.Repository.ServicioRepository;
 import com.example.worker_registry.Services.PushNotificationService;
+import com.example.worker_registry.service.PaymentService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +17,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class OfertaService {
@@ -23,16 +26,16 @@ public class OfertaService {
     private final OfertaRepository ofertaRepository;
     private final ServicioRepository servicioRepository;
     private final PushNotificationService pushNotificationService;
-    private final PaymentIntegrationService paymentIntegrationService;
+    private final PaymentService paymentService;
 
     public OfertaService(OfertaRepository ofertaRepository,
                          ServicioRepository servicioRepository,
                          PushNotificationService pushNotificationService,
-                         PaymentIntegrationService paymentIntegrationService) {
+                         PaymentService paymentService) {
         this.ofertaRepository = ofertaRepository;
         this.servicioRepository = servicioRepository;
         this.pushNotificationService = pushNotificationService;
-        this.paymentIntegrationService = paymentIntegrationService;
+        this.paymentService = paymentService;
     }
 
     public List<Oferta> listarPendientesCliente(Long clienteId) {
@@ -207,19 +210,77 @@ public class OfertaService {
     }
 
     private ResultadoRespuesta aceptarOferta(Oferta oferta, String mensaje) {
-        paymentIntegrationService.iniciarPago(oferta);
         Servicio servicio = oferta.getServicio();
-        notificarClientePagoPendiente(servicio);
-        return new ResultadoRespuesta("Pago pendiente de confirmacion", true, servicio);
+        if (servicio != null) {
+            servicio.setEstado(EstadoServicio.PENDIENTE);
+            if (oferta.getTrabajador() != null && oferta.getTrabajador().getId() != null) {
+                servicio.setAssignedWorkerId(oferta.getTrabajador().getId());
+            }
+            servicioRepository.save(servicio);
+        }
+        oferta.setEstado(EstadoNegociacion.ACEPTADA);
+        oferta.setMontoAcordado(oferta.getMonto());
+        Map<String, Object> intent = crearIntentParaOferta(oferta);
+        guardarIntentEnOferta(oferta, intent);
+        ofertaRepository.save(oferta);
+        String respuesta = mensaje != null ? mensaje : "Oferta aceptada";
+        if (servicio != null) {
+            notificarClientePendientePago(servicio);
+        }
+        return new ResultadoRespuesta(respuesta, true, servicio);
     }
 
-    private void notificarClientePagoPendiente(Servicio servicio) {
+    private void notificarClienteServicioAsignado(Servicio servicio) {
+        if (servicio == null || servicio.getCliente() == null) {
+            return;
+        }
+        pushNotificationService.notifyCliente(servicio.getCliente().getId(),
+                "Servicio asignado",
+                "Tu servicio " + servicio.getTitulo() + " fue aceptado y el trabajador ya está asignado.");
+    }
+
+    private void notificarClientePendientePago(Servicio servicio) {
         if (servicio == null || servicio.getCliente() == null) {
             return;
         }
         pushNotificationService.notifyCliente(servicio.getCliente().getId(),
                 "Pago pendiente",
-                "Tu servicio " + servicio.getTitulo() + " esta a la espera de pago.");
+                "Tu servicio " + servicio.getTitulo() + " está pendiente de pago.");
+    }
+
+    private Map<String, Object> crearIntentParaOferta(Oferta oferta) {
+        BigDecimal monto = oferta.getMonto();
+        Servicio servicio = oferta.getServicio();
+        Map<String, Object> payload = new java.util.LinkedHashMap<>();
+        payload.put("amount", montoACentavos(monto));
+        if (servicio != null) {
+            payload.put("description", servicio.getTitulo());
+            payload.put("metadata", Map.of(
+                    "offerId", oferta.getId(),
+                    "serviceId", servicio.getId()
+            ));
+        } else {
+            payload.put("description", "Servicio en Conecta2");
+            payload.put("metadata", Map.of("offerId", oferta.getId()));
+        }
+        payload.put("payment_method_types", java.util.List.of("card"));
+        return paymentService.createPaymentIntent(payload);
+    }
+
+    private long montoACentavos(BigDecimal monto) {
+        if (monto == null) return 0L;
+        return monto.multiply(BigDecimal.valueOf(100)).longValue();
+    }
+
+    private void guardarIntentEnOferta(Oferta oferta, Map<String, Object> intent) {
+        if (intent == null || intent.isEmpty()) return;
+        oferta.setPaymentIntentId(getString(intent.get("id")));
+        oferta.setPaymentClientSecret(getString(intent.get("clientSecret")));
+        oferta.setPaymentStatus(getString(intent.get("status")));
+    }
+
+    private String getString(Object value) {
+        return value == null ? null : value.toString();
     }
 
     private List<Oferta> filtrarOfertasConServicioVigente(List<Oferta> ofertas) {
@@ -257,6 +318,74 @@ public class OfertaService {
             return true;
         }
         return false;
+    }
+
+    public void actualizarEstadoPago(Map<String, Object> intent) {
+        if (intent == null || intent.isEmpty()) return;
+        String intentId = getString(intent.get("id"));
+        Long offerId = extractOfferId(intent);
+        Optional<Oferta> opt = findOferta(intentId, offerId);
+        if (opt.isEmpty()) return;
+        Oferta oferta = opt.get();
+        guardarIntentEnOferta(oferta, intent);
+        String status = Optional.ofNullable(intent.get("status"))
+                .map(Object::toString)
+                .map(String::toUpperCase)
+                .orElse(null);
+        if (status != null) {
+            oferta.setPaymentStatus(status);
+        }
+        Servicio servicio = oferta.getServicio();
+        Long workerId = oferta.getTrabajador() != null ? oferta.getTrabajador().getId() : null;
+        if (servicio != null) {
+            if ("SUCCEEDED".equals(status)) {
+                servicio.setEstado(EstadoServicio.ASIGNADO);
+                if (workerId != null) {
+                    servicio.setAssignedWorkerId(workerId);
+                }
+                servicioRepository.save(servicio);
+                notificarClienteServicioAsignado(servicio);
+            } else {
+                servicio.setEstado(EstadoServicio.PENDIENTE);
+                servicioRepository.save(servicio);
+            }
+        }
+        ofertaRepository.save(oferta);
+    }
+
+    private Optional<Oferta> findOferta(String intentId, Long offerId) {
+        if (intentId != null) {
+            Optional<Oferta> byIntent = ofertaRepository.findByPaymentIntentId(intentId);
+            if (byIntent.isPresent()) {
+                return byIntent;
+            }
+        }
+        if (offerId != null) {
+            return ofertaRepository.findById(offerId);
+        }
+        return Optional.empty();
+    }
+
+    private Long extractOfferId(Map<String, Object> intent) {
+        Object metadata = intent.get("metadata");
+        if (metadata instanceof Map<?, ?> meta) {
+            Object raw = meta.get("offerId");
+            Long parsed = parseLong(raw);
+            if (parsed != null) return parsed;
+        }
+        return parseLong(intent.get("offerId"));
+    }
+
+    private Long parseLong(Object raw) {
+        if (raw == null) return null;
+        if (raw instanceof Number number) {
+            return number.longValue();
+        }
+        try {
+            return Long.parseLong(raw.toString());
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     public static class ResponderOferta {

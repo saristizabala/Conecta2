@@ -47,6 +47,13 @@
       <artifactId>spring-boot-starter-mail</artifactId>
     </dependency>
 
+    <!-- Stripe -->
+    <dependency>
+      <groupId>com.stripe</groupId>
+      <artifactId>stripe-java</artifactId>
+      <version>22.21.0</version>
+    </dependency>
+
     <!-- PostgreSQL (runtime) -->
     <dependency>
       <groupId>org.postgresql</groupId>

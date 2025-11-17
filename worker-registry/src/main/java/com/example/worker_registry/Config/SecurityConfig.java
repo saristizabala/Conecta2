@@ -1,4 +1,4 @@
-package com.example.worker_registry.Config;
+package com.example.worker_registry.config;
 
 import com.example.worker_registry.securtity.JwtAuthenticationFilter;
 import org.springframework.context.annotation.Bean;
@@ -24,13 +24,14 @@ public class SecurityConfig {
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/api/v1/auth/**").permitAll()
                 .requestMatchers("/api/v1/clients/services/public/**").permitAll()
-                .requestMatchers("/api/v1/payments/webhook").permitAll()
                 .requestMatchers("/api/v1/clients/services/**").hasRole("CLIENT")
                 .requestMatchers("/api/v1/workers/services/**").hasRole("WORKER")
                 .requestMatchers("/api/v1/clients/*/offers/pending").hasRole("CLIENT")
                 .requestMatchers("/api/v1/workers/*/offers/pending").hasRole("WORKER")
                 .requestMatchers("/api/v1/offers/*/respond").hasRole("CLIENT")
                 .requestMatchers("/api/v1/offers/*/counter").hasRole("CLIENT")
+                .requestMatchers("/payment/webhook").permitAll()
+                .requestMatchers("/payment/**").hasRole("CLIENT")
                 .requestMatchers("/api/v1/offers/*/worker/respond").hasRole("WORKER")
                 .requestMatchers("/api/Clientes/**").permitAll()
                 .requestMatchers("/api/Trabajadores/**").permitAll()

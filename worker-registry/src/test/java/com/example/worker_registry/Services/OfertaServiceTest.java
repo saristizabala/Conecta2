@@ -9,15 +9,18 @@ import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Entitys.Trabajador;
 import com.example.worker_registry.Repository.OfertaRepository;
 import com.example.worker_registry.Repository.ServicioRepository;
+import com.example.worker_registry.service.PaymentService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
@@ -27,7 +30,7 @@ class OfertaServiceTest {
     private OfertaRepository ofertaRepository;
     private ServicioRepository servicioRepository;
     private PushNotificationService pushNotificationService;
-    private PaymentIntegrationService paymentIntegrationService;
+    private PaymentService paymentService;
     private OfertaService ofertaService;
 
     @BeforeEach
@@ -35,8 +38,12 @@ class OfertaServiceTest {
         ofertaRepository = Mockito.mock(OfertaRepository.class);
         servicioRepository = Mockito.mock(ServicioRepository.class);
         pushNotificationService = Mockito.mock(PushNotificationService.class);
-        paymentIntegrationService = Mockito.mock(PaymentIntegrationService.class);
-        ofertaService = new OfertaService(ofertaRepository, servicioRepository, pushNotificationService, paymentIntegrationService);
+        paymentService = Mockito.mock(PaymentService.class);
+        when(paymentService.createPaymentIntent(anyMap())).thenReturn(Map.of(
+                "id", "pi_mocked",
+                "clientSecret", "secret",
+                "status", "PENDING"));
+        ofertaService = new OfertaService(ofertaRepository, servicioRepository, pushNotificationService, paymentService);
     }
 
     @Test
@@ -129,20 +136,19 @@ class OfertaServiceTest {
 
         when(ofertaRepository.findById(8L)).thenReturn(Optional.of(oferta));
         when(ofertaRepository.save(any(Oferta.class))).thenAnswer(inv -> inv.getArgument(0));
-        when(paymentIntegrationService.iniciarPago(oferta)).thenAnswer(inv -> {
-            servicio.setEstado(EstadoServicio.PENDIENTE_PAGO);
-            oferta.setEstado(EstadoNegociacion.ACEPTADA);
-            return oferta;
-        });
+        when(servicioRepository.save(any(Servicio.class))).thenAnswer(inv -> inv.getArgument(0));
 
         var resultado = ofertaService.responderOferta(3L, 8L, "ACCEPT");
 
         assertTrue(resultado.accepted());
-        assertEquals("Pago pendiente de confirmacion", resultado.mensaje());
+        assertEquals("Oferta aceptada", resultado.mensaje());
         assertEquals(EstadoNegociacion.ACEPTADA, oferta.getEstado());
+        assertEquals(EstadoServicio.PENDIENTE, servicio.getEstado());
+        assertEquals(trabajador.getId(), servicio.getAssignedWorkerId());
 
-        verify(paymentIntegrationService).iniciarPago(oferta);
-        verify(pushNotificationService).notifyCliente(eq(3L), eq("Pago pendiente"), contains("Servicio"));
+        verify(servicioRepository).save(servicio);
+        verify(ofertaRepository).save(oferta);
+        verify(pushNotificationService).notifyCliente(eq(3L), eq("Pago pendiente"), contains("Servicio Demo"));
     }
 
     @Test

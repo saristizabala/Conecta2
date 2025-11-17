@@ -1,4 +1,4 @@
-package com.example.worker_registry.Config;
+package com.example.worker_registry.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

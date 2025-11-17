@@ -14,8 +14,6 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
     Optional<Oferta> findFirstByServicio_IdAndEstado(Long servicioId,
                                                      com.example.worker_registry.Entitys.EstadoNegociacion estado);
 
-    Optional<Oferta> findByPaymentIntentId(String paymentIntentId);
-
     java.util.List<Oferta> findByServicio_Cliente_IdAndServicio_EstadoAndEstadoAndUltimaPropuestaPorOrderByActualizadoEnDesc(
             Long clienteId,
             com.example.worker_registry.Entitys.EstadoServicio estadoServicio,
@@ -27,6 +25,8 @@ public interface OfertaRepository extends JpaRepository<Oferta, Long> {
             com.example.worker_registry.Entitys.EstadoServicio estadoServicio,
             com.example.worker_registry.Entitys.EstadoNegociacion estadoNegociacion,
             com.example.worker_registry.Entitys.ParticipanteOferta ultimaPropuestaPor);
+
+    Optional<Oferta> findByPaymentIntentId(String paymentIntentId);
 
     void deleteByServicio_Id(Long servicioId);
 

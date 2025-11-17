@@ -1,50 +1,32 @@
 ## Conecta2 – Worker Registry
 
-Servicio Spring Boot que gestiona el registro de clientes/trabajadores, publicación de servicios y negociación de ofertas. Esta rama integra al microservicio externo **PasarelaPagos** para simular cobros.
+Spring Boot service that manages clients and workers, publishes services, and drives the negotiation of offers. The project focuses on keeping the negotiation workflow consistent and providing endpoints for clients and workers to exchange offers and responses.
 
-### Integración con PasarelaPagos
+### Key endpoints
 
-- **Cliente HTTP**: `PaymentGatewayClient` usa `RestClient` con *timeouts* configurables y reintentos controlados (`payments.*` en `application.properties`). Inyecta `X-API-KEY` en cada request contra `/payments/intents`, `/payments/intents/{id}`, `/payments/intents/{id}/confirm`.
-- **Persistencia**: `Oferta` guarda `paymentIntentId`, `paymentClientSecret`, `paymentStatus` y `paymentMetadata`. Los servicios aceptados quedan en estado `PENDIENTE_PAGO` hasta que la pasarela confirme.
-- **Orquestación**: `PaymentIntegrationService` crea intents al aceptar/cerrar negociaciones, escucha webhooks (`POST /api/v1/payments/webhook`) y actualiza `EstadoServicio`:
-  - `SUCCEEDED` → servicio `ASIGNADO`, se notifican cliente y trabajador vía `PushNotificationService`/`MailService`.
-  - `FAILED` → servicio vuelve a `PENDIENTE`, la oferta vuelve a `EN_NEGOCIACION`.
-- **Endpoints expuestos**:
-  - `GET /api/v1/payments/offers/{offerId}` → entrega `paymentIntentId`, `clientSecret` y `paymentStatus` al cliente autenticado (query `?refresh=true` vuelve a consultar a la pasarela).
-  - `POST /api/v1/payments/offers/{offerId}/refresh` → fuerza un poll manual.
-  - `POST /api/v1/payments/webhook` → usado por la pasarela simulada, protegido con header `X-WEBHOOK-SECRET`.
+- `GET /api/v1/clients/{clientId}/offers/pending`: returns the pending offers for a client.
+- `GET /api/v1/workers/{workerId}/offers/pending`: returns the active offers a worker has to review.
+- `POST /api/v1/offers/{id}/respond`: lets a client accept or reject an offer (`accept` parameter or payload).
+- `POST /api/v1/offers/{id}/counter` and `/worker/counter`: register counter-offers from clients or workers.
+- `POST /api/v1/offers/{id}/worker/respond`: allows a worker to reply to a client counter-offer.
 
-### Configuración requerida
+### Local setup
 
-En `application.properties`:
+1. Adjust `src/main/resources/application.properties` with the PostgreSQL credentials and JWT secret required by the service.
+2. Start the application with `./mvnw spring-boot:run` (Windows: `mvnw.cmd spring-boot:run`).
+3. Use the REST endpoints above to exercise the negotiation flow.
 
-```properties
-payments.base-url=http://localhost:8090
-payments.api-key=local-gateway-key
-payments.webhook-secret=local-webhook-secret
-payments.connect-timeout=2s
-payments.read-timeout=4s
-payments.max-retries=3
-payments.retry-statuses=500,502,503
-```
+### Stripe payment integration
 
-En la pasarela fake deberás configurar:
+- Supply a Stripe test key via `stripe.api-key` (or `STRIPE_API_KEY` env var) and keep `stripe.default-currency=COP`.
+- `POST /payment/create-intent` receives JSON body like `{"amount":120000,"description":"Servicio de jardinería","payment_method_types":["card","pse"]}`; the response contains the intent status and `clientSecret`.
+- `POST /payment/confirm` expects `{"paymentIntentId":"pi_XXX","paymentMethod":"pm_card_visa"}`; the controller confirms the payment and returns the updated intent.
+- `GET /payment/status/{id}` polls Stripe for the latest intent state.
+- `POST /payment/offers/{id}/accept-and-create-intent` acepta la oferta (verifica rol `CLIENT`) y crea simultáneamente el `PaymentIntent`; el payload puede contener `payment_method_types` y/o otros campos que luego se usan como metadata para la pasarela.
+- `POST /payment/webhook` atiende los eventos de Stripe (`payment_intent.succeeded`, `requires_payment_method`, etc.) y solo actualiza ofertas en estado `ACEPTADA`, notificando al cliente en caso de éxito o reabriendo la negociación si falla.
+- All payment payloads are handled with `Map<String,Object>` to keep the code DTO-free.
+- Exceptions from Stripe propagate via `StripeProcessingException`, so the controller returns HTTP codes that match Stripe’s responses.
 
-- `POST /payments/intents` para recibir `externalRef`, `amount`, `currency`, `description`, `metadata`.
-- `POST /payments/intents/{id}/confirm` para confirmar pagos desde el frontend usando `clientSecret`.
-- `GET /payments/intents/{id}` para *polling*.
-- `POST /webhooks/test` (o endpoint equivalente) que reenvíe eventos a `worker-registry` con header `X-WEBHOOK-SECRET`.
+### Tests
 
-### Flujo resumido
-
-1. Cliente acepta una oferta → `OfertaService` invoca `PaymentIntegrationService.iniciarPago`.
-2. Se crea un intent (`PaymentGatewayClient.createIntent`) y se guarda `clientSecret`. El servicio pasa a `PENDIENTE_PAGO`.
-3. El frontend consulta `GET /api/v1/payments/offers/{id}` para obtener `clientSecret` y llama a `POST /payments/intents/{id}/confirm` en PasarelaPagos.
-4. La pasarela envía webhook cuando el estado cambia:
-   - `SUCCEEDED`: el servicio queda `ASIGNADO`, se cierran otras ofertas y se notifican las partes.
-   - `FAILED`: se limpia el intent y la negociación se reabre.
-5. Si el webhook se pierde, el frontend puede `refresh=true` para que el backend vuelva a consultar el intent remoto.
-
-### Pruebas
-
-Se añadieron pruebas unitarias (`PaymentIntegrationServiceTest`, `OfertaServiceTest`) usando mocks del gateway. `src/test/resources/application.properties` levanta una base H2 y desactiva correos para test.
+- Run `./mvnw test` (Windows: `mvnw.cmd test`) to execute the unit tests, including `OfertaServiceTest`.

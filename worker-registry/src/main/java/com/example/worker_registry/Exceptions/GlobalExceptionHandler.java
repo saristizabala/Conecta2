@@ -1,4 +1,4 @@
-package com.example.worker_registry.Exceptions;
+package com.example.worker_registry.exceptions;
 
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
