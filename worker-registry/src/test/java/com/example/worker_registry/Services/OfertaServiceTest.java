@@ -4,6 +4,7 @@ import com.example.worker_registry.Entitys.Cliente;
 import com.example.worker_registry.Entitys.EstadoNegociacion;
 import com.example.worker_registry.Entitys.EstadoServicio;
 import com.example.worker_registry.Entitys.Oferta;
+import com.example.worker_registry.Entitys.PaymentStatus;
 import com.example.worker_registry.Entitys.ParticipanteOferta;
 import com.example.worker_registry.Entitys.Servicio;
 import com.example.worker_registry.Entitys.Trabajador;
@@ -143,6 +144,43 @@ class OfertaServiceTest {
 
         verify(paymentIntegrationService).iniciarPago(oferta);
         verify(pushNotificationService).notifyCliente(eq(3L), eq("Pago pendiente"), contains("Servicio"));
+    }
+
+    @Test
+    void responderOfertaAceptada_sinPasarelaNoEnviaRecordatorioDePago() {
+        var cliente = Cliente.builder().id(5L).build();
+        var servicio = Servicio.builder()
+                .id(50L)
+                .cliente(cliente)
+                .titulo("Servicio sin pasarela")
+                .estado(EstadoServicio.PENDIENTE)
+                .fechaEstimada(LocalDateTime.now().plusDays(2))
+                .build();
+        var trabajador = new Trabajador();
+        trabajador.setId(6L);
+
+        var oferta = Oferta.builder()
+                .id(60L)
+                .servicio(servicio)
+                .trabajador(trabajador)
+                .estado(EstadoNegociacion.EN_NEGOCIACION)
+                .ultimaPropuestaPor(ParticipanteOferta.TRABAJADOR)
+                .monto(BigDecimal.valueOf(120))
+                .build();
+
+        when(ofertaRepository.findById(60L)).thenReturn(Optional.of(oferta));
+        when(paymentIntegrationService.iniciarPago(oferta)).thenAnswer(inv -> {
+            servicio.setEstado(EstadoServicio.ASIGNADO);
+            oferta.setPaymentStatus(PaymentStatus.NOT_REQUIRED);
+            oferta.setEstado(EstadoNegociacion.ACEPTADA);
+            return oferta;
+        });
+
+        var resultado = ofertaService.responderOferta(cliente.getId(), 60L, "ACCEPT");
+
+        assertTrue(resultado.accepted());
+        assertEquals("Oferta aceptada y servicio asignado sin pago en linea", resultado.mensaje());
+        verify(pushNotificationService, never()).notifyCliente(anyLong(), anyString(), anyString());
     }
 
     @Test

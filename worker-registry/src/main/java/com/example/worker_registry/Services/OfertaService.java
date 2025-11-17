@@ -84,7 +84,7 @@ public class OfertaService {
         if (normalizedAction == null || "REJECT".equals(normalizedAction)) {
             oferta.setEstado(EstadoNegociacion.RECHAZADA);
             ofertaRepository.save(oferta);
-            return new ResultadoRespuesta("Oferta rechazada", false, null);
+            return ResultadoRespuesta.sinPago("Oferta rechazada", oferta, false, oferta.getPaymentStatus());
         }
         throw new IllegalArgumentException("Acción no soportada: " + action);
     }
@@ -181,7 +181,7 @@ public class OfertaService {
 
         oferta.setEstado(EstadoNegociacion.RECHAZADA);
         ofertaRepository.save(oferta);
-        return new ResultadoRespuesta("Contraoferta rechazada", false, null);
+        return ResultadoRespuesta.sinPago("Contraoferta rechazada", oferta, false, oferta.getPaymentStatus());
     }
 
     private void validarClientePropietario(Long clientId, Servicio servicio) {
@@ -207,10 +207,14 @@ public class OfertaService {
     }
 
     private ResultadoRespuesta aceptarOferta(Oferta oferta, String mensaje) {
-        paymentIntegrationService.iniciarPago(oferta);
-        Servicio servicio = oferta.getServicio();
-        notificarClientePagoPendiente(servicio);
-        return new ResultadoRespuesta("Pago pendiente de confirmacion", true, servicio);
+        Oferta ofertaActualizada = paymentIntegrationService.iniciarPago(oferta);
+        Servicio servicio = ofertaActualizada.getServicio();
+
+        if (servicio != null && servicio.getEstado() == EstadoServicio.PENDIENTE_PAGO) {
+            notificarClientePagoPendiente(servicio);
+            return ResultadoRespuesta.conPagoPendiente(servicio, ofertaActualizada);
+        }
+        return ResultadoRespuesta.sinPago("Oferta aceptada y servicio asignado sin pago en linea", ofertaActualizada);
     }
 
     private void notificarClientePagoPendiente(Servicio servicio) {
@@ -269,7 +273,56 @@ public class OfertaService {
         public String mensaje;
     }
 
-    public record ResultadoRespuesta(String mensaje, boolean accepted, Servicio servicio) {}
+    public record ResultadoRespuesta(
+            String mensaje,
+            boolean accepted,
+            Servicio servicio,
+            Long offerId,
+            Long serviceId,
+            String serviceTitle,
+            BigDecimal amount,
+            String currency,
+            String paymentIntentId,
+            String paymentClientSecret,
+            com.example.worker_registry.Entitys.PaymentStatus paymentStatus
+    ) {
+        public static ResultadoRespuesta conPagoPendiente(Servicio servicio, Oferta oferta) {
+            return new ResultadoRespuesta(
+                    "Pago pendiente de confirmacion",
+                    true,
+                    servicio,
+                    oferta.getId(),
+                    servicio != null ? servicio.getId() : null,
+                    servicio != null ? servicio.getTitulo() : null,
+                    oferta.getMonto(),
+                    "MXN",
+                    oferta.getPaymentIntentId(),
+                    oferta.getPaymentClientSecret(),
+                    oferta.getPaymentStatus()
+            );
+        }
+
+        public static ResultadoRespuesta sinPago(String mensaje, Oferta oferta) {
+            return sinPago(mensaje, oferta, true, oferta.getPaymentStatus());
+        }
+
+        public static ResultadoRespuesta sinPago(String mensaje, Oferta oferta, boolean accepted, com.example.worker_registry.Entitys.PaymentStatus status) {
+            Servicio servicio = oferta.getServicio();
+            return new ResultadoRespuesta(
+                    mensaje,
+                    accepted,
+                    servicio,
+                    oferta.getId(),
+                    servicio != null ? servicio.getId() : null,
+                    servicio != null ? servicio.getTitulo() : null,
+                    oferta.getMonto(),
+                    "MXN",
+                    oferta.getPaymentIntentId(),
+                    oferta.getPaymentClientSecret(),
+                    status
+            );
+        }
+    }
 
     private String normalizeAction(String action) {
         if (action == null) return null;

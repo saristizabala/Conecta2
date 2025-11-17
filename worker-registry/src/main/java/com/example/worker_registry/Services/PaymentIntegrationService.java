@@ -7,7 +7,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 import com.example.worker_registry.Entitys.EstadoNegociacion;
 import com.example.worker_registry.Entitys.EstadoServicio;
 import com.example.worker_registry.Entitys.Oferta;
@@ -47,6 +48,19 @@ public class PaymentIntegrationService {
 
     @Transactional
     public Oferta iniciarPago(Oferta oferta) {
+        try {
+            return iniciarPagoEnPasarela(oferta);
+        } catch (RestClientException ex) {
+            log.warn("[Payment] Pasarela de pagos no disponible o respondio con error, se asignara sin cobro remoto", ex);
+            return aceptarSinPasarela(oferta);
+        } catch (RuntimeException ex) {
+            // Salvaguarda final para evitar que la aceptacion devuelva 500 por fallas no previstas
+            log.error("[Payment] Error inesperado al iniciar pago, se asigna sin pasarela", ex);
+            return aceptarSinPasarela(oferta);
+        }
+    }
+
+    private Oferta iniciarPagoEnPasarela(Oferta oferta) {
         Servicio servicio = oferta.getServicio();
         var request = new PaymentGatewayClient.PaymentIntentRequest(
                 String.valueOf(oferta.getId()),
@@ -69,6 +83,27 @@ public class PaymentIntegrationService {
         }
         servicioRepository.save(servicio);
 
+        return oferta;
+    }
+
+    private Oferta aceptarSinPasarela(Oferta oferta) {
+        Servicio servicio = oferta.getServicio();
+
+        oferta.setEstado(EstadoNegociacion.ACEPTADA);
+        oferta.setMontoAcordado(oferta.getMonto());
+        oferta.setPaymentStatus(PaymentStatus.NOT_REQUIRED);
+        oferta.setPaymentIntentId(null);
+        oferta.setPaymentClientSecret(null);
+        ofertaRepository.save(oferta);
+
+        servicio.setEstado(EstadoServicio.ASIGNADO);
+        if (oferta.getTrabajador() != null) {
+            servicio.setAssignedWorkerId(oferta.getTrabajador().getId());
+        }
+        servicioRepository.save(servicio);
+
+        cerrarOtrasOfertas(servicio, oferta.getId());
+        log.info("[Payment] Oferta {} aceptada sin pasarela; servicio {} asignado manualmente", oferta.getId(), servicio.getId());
         return oferta;
     }
 

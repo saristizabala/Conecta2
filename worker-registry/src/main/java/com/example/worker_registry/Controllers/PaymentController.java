@@ -96,14 +96,21 @@ public class PaymentController {
     public record PaymentInfoDto(
             Long offerId,
             Long serviceId,
+            String serviceTitle,
+            java.math.BigDecimal amount,
+            String currency,
             String paymentIntentId,
             String paymentClientSecret,
             PaymentStatus paymentStatus) {
         public static PaymentInfoDto from(Oferta oferta) {
             Long serviceId = oferta.getServicio() != null ? oferta.getServicio().getId() : null;
+            String title = oferta.getServicio() != null ? oferta.getServicio().getTitulo() : null;
             return new PaymentInfoDto(
                     oferta.getId(),
                     serviceId,
+                    title,
+                    oferta.getMonto(),
+                    "MXN",
                     oferta.getPaymentIntentId(),
                     oferta.getPaymentClientSecret(),
                     oferta.getPaymentStatus()

@@ -15,6 +15,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 
 import com.example.worker_registry.Entitys.Cliente;
 import com.example.worker_registry.Entitys.EstadoNegociacion;
@@ -134,6 +136,42 @@ class PaymentIntegrationServiceTest {
         assertEquals(EstadoServicio.PENDIENTE, servicio.getEstado());
         assertEquals(EstadoNegociacion.EN_NEGOCIACION, oferta.getEstado());
         assertEquals(PaymentStatus.FAILED, oferta.getPaymentStatus());
+    }
+
+    @Test
+    void iniciarPagoFallaPasarela_AsignaSinPago() {
+        Oferta oferta = buildOferta();
+        oferta.getServicio().setEstado(EstadoServicio.PENDIENTE);
+        var trabajador = new com.example.worker_registry.Entitys.Trabajador();
+        trabajador.setId(77L);
+        trabajador.setNombreCompleto("Trabajador");
+        oferta.setTrabajador(trabajador);
+
+        when(paymentGatewayClient.createIntent(any())).thenThrow(new ResourceAccessException("Connection refused"));
+        when(ofertaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(servicioRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        paymentIntegrationService.iniciarPago(oferta);
+
+        assertEquals(EstadoNegociacion.ACEPTADA, oferta.getEstado());
+        assertEquals(PaymentStatus.NOT_REQUIRED, oferta.getPaymentStatus());
+        assertEquals(EstadoServicio.ASIGNADO, oferta.getServicio().getEstado());
+        assertEquals(trabajador.getId(), oferta.getServicio().getAssignedWorkerId());
+    }
+
+    @Test
+    void iniciarPagoFallaPorErrorHttp_AsignaSinPago() {
+        Oferta oferta = buildOferta();
+        oferta.getServicio().setEstado(EstadoServicio.PENDIENTE);
+
+        when(paymentGatewayClient.createIntent(any())).thenThrow(new RestClientException("502 Bad Gateway"));
+        when(ofertaRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(servicioRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        paymentIntegrationService.iniciarPago(oferta);
+
+        assertEquals(PaymentStatus.NOT_REQUIRED, oferta.getPaymentStatus());
+        assertEquals(EstadoServicio.ASIGNADO, oferta.getServicio().getEstado());
     }
 
     private Oferta buildOferta() {

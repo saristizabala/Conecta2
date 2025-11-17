@@ -124,9 +124,15 @@ public class OfertaController {
         var payload = new LinkedHashMap<String, Object>();
         payload.put("mensaje", result.mensaje());
         payload.put("accepted", result.accepted());
-        if (result.servicio() != null) {
-            payload.put("servicio", result.servicio());
-        }
+        payload.put("offerId", result.offerId());
+        payload.put("serviceId", result.serviceId());
+        payload.put("serviceTitle", result.serviceTitle());
+        payload.put("amount", result.amount());
+        payload.put("currency", result.currency());
+        payload.put("paymentIntentId", result.paymentIntentId());
+        payload.put("paymentClientSecret", result.paymentClientSecret());
+        payload.put("paymentStatus", result.paymentStatus());
+        payload.put("servicio", result.servicio());
         return payload;
     }
 
